@@ -10,6 +10,7 @@ cargo install cargo-watch \
  cargo-tarpaulin \
  cargo-audit \
  cargo-expand \
- cargo-edit
+ cargo-edit \
+ cargo-udeps
 
 ```

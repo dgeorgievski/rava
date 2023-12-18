@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse};
-
+use crate::errors::AppError;
 
 #[derive(serde::Deserialize)]
 pub struct FormData {
@@ -17,5 +17,16 @@ pub struct FormData {
     )
 )]
 pub async fn subscribe(form: web::Form<FormData>) -> HttpResponse {
-    HttpResponse::Ok().finish()
+    match insert_subscriber(&form).await {
+        Ok(_) => HttpResponse::Ok().finish(),
+        Err(_) => HttpResponse::InternalServerError().finish(),
+    }
+}
+
+#[tracing::instrument(
+    name = "Saving new subscriber details in the database",
+    skip(_form)
+)]
+pub async fn insert_subscriber(_form: &FormData) -> Result<(), AppError> {
+    Ok(())
 }
