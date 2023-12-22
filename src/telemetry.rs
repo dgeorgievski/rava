@@ -13,7 +13,7 @@ use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 /// type of the returned subscriber, which is indeed quite complex.
 pub fn get_subscriber<Sink>(
     name: String,
-    env_filter: String,
+    env_filter: String, 
     sink: Sink,
 ) -> impl Subscriber + Sync + Send
 where

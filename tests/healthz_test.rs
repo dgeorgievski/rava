@@ -40,8 +40,7 @@ fn spawn_app() -> TestApp {
     let address = format!("http://127.0.0.1:{}", port);
 
     let mut configuration = get_configuration().expect("Failed to read configuration.");
-    configuration.database.database_name = Uuid::new_v4().to_string();
-
+   
     let server = run(listener).expect("Failed to bind address");
     let _ = tokio::spawn(server);
     TestApp {

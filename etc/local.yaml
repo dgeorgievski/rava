@@ -1,0 +1,9 @@
+application:
+  host: 127.0.0.1
+kube:
+  use_tls: false
+  # events is always element of resources. It's added if missing.
+  # resources:
+  #   - applications
+  namespaces: ["defaults"]
+  
