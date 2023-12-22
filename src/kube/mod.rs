@@ -6,5 +6,5 @@ pub mod watch;
 
 pub use client::client;
 pub use discovery::new;
-pub use discovery::{dynamic_api, resolve_api_resource};
+pub use discovery::{dynamic_api, resolve_api_resources};
 pub use watch::watch;

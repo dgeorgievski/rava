@@ -66,15 +66,12 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
             },
         Ok(mut config) => {
             if !config.kube.resources.contains(&"event".to_string()) {
-                println!("Added events to kube.resources");
                 config.kube.resources.push("events".to_string());
             }
 
-            print!("resources: {:?} ns: {:?}\n", config.kube.resources, config.kube.namespaces );
             return Ok(config)
         },     
     }
-
 }
 
 /// The possible runtime environment for our application.

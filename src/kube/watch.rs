@@ -1,6 +1,6 @@
 use crate::kube::{client, discovery};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 // use futures::{StreamExt, TryStreamExt};
 
 // use kube::{
@@ -13,23 +13,30 @@ use anyhow::{Context, Result};
 use crate::configuration::Settings;
 
 pub async fn watch(conf: &Settings) -> Result<()> {
-    tracing::info!("watching");
-    let cli = client::client(conf.kube.use_tls).await?;
-    let discovery = discovery::new(&cli).await?;
-    
-    // TODO: make resources configurable and possible to watch them 
-    let resources = conf.kube.resources.join(",");
-
     tracing::info!("resources {:?}, namespaces {:?}", conf.kube.resources, conf.kube.namespaces);
     
-    // Common discovery, parameters, and api configuration for a single resource
-    let (ar, caps) = discovery::resolve_api_resource(
-                            &discovery, 
-                            &conf.kube.resources)
-                        .with_context(|| 
-                            format!("resource {:?} not found in cluster", resources))?;
+    let cli = match client::client(conf.kube.use_tls).await {
+        Err(why) => {
+            tracing::error!("k8s Client failed {:?}", why);
+            return Err(why.into())
+        }
+        Ok(cli) => {
+            tracing::info!("Succesfully connected to k8s");
+            cli
+        }
+    };
 
-    tracing::info!("watching 2");
+    let discovery = discovery::new(&cli).await?;
+    // Common discovery, parameters, and api configuration for a single resource
+     let api_res = discovery::resolve_api_resources(
+                            &discovery, 
+                            &conf.kube.resources);
+
+    for (res, caps) in api_res {
+        println!("\n\n ApiRes {:?} \n\n CAP: {:?}", res, caps);
+    }
+
+                    
     // TODO: add label filtering
     // let mut lp = ListParams::default();
     // if let Some(label) = app.selector.clone() {
@@ -39,11 +46,11 @@ pub async fn watch(conf: &Settings) -> Result<()> {
     // if let Some(name) = app.name.clone() {
     //     lp = lp.fields(&format!("metadata.name={}", name));
     // }
-    let _api = discovery::dynamic_api(
-                        ar, 
-                        caps, 
-                        cli, 
-                        &conf.kube.namespaces);
+    // let _api = discovery::dynamic_api(
+    //                     ar, 
+    //                     caps, 
+    //                     cli, 
+    //                     &conf.kube.namespaces);
 
     
 

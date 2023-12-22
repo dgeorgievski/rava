@@ -6,6 +6,12 @@ kube:
   # events is always element of resources. It's added if missing.
   resources:
     - deployments
+  # [] for cluster scope ie all namespaces
   namespaces: []
+
+  # TODO watch resources per diff namespaces
+  watch:
+    - resources: []
+      namespaces: []
 
   

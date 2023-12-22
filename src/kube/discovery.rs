@@ -1,6 +1,7 @@
 use crate::kube::apigroup::{AllResource, ApiCapabilities, ApiGroup, ApiResource};
 
 use anyhow::Result;
+use itertools::Itertools;
 use kube::{
     api::{Api, DynamicObject},
     discovery::Scope,
@@ -52,32 +53,39 @@ impl Discovery {
     pub async fn run(mut self) -> Result<Self> {
         self.groups.clear();
         let api_groups = self.client.list_api_groups().await?;
+        
         // query regular groups + crds under /apis
         for g in api_groups.groups {
             let key = g.name.clone();
+            println!("api_groups name: {:?}", key);
+        
             if self.mode.is_queryable(&key) {
                 let apigroup = ApiGroup::query_apis(&self.client, g).await?;
                 self.groups.insert(key, apigroup);
+                println!("  > inserted");
             }
         }
+        
         // query core versions under /api
         let corekey = ApiGroup::CORE_GROUP.to_string();
         if self.mode.is_queryable(&corekey) {
             let coreapis = self.client.list_core_api_versions().await?;
             let apigroup = ApiGroup::query_core(&self.client, coreapis).await?;
+            println!("  > inserted core {:?}", apigroup.name());
             self.groups.insert(corekey, apigroup);
         }
         Ok(self)
     }
 }
 
-pub fn resolve_api_resource(
+pub fn resolve_api_resources(
     discovery: &Discovery,
     resources: &Vec<String>,
-) -> Option<(ApiResource, ApiCapabilities)> {
+)-> Vec<(ApiResource, ApiCapabilities)> {
     // iterate through groups to find matching kind/plural names at recommended versions
     // and then take the minimal match by group.name (equivalent to sorting groups by group.name).
     // this is equivalent to kubectl's api group preference
+
     discovery
         .groups()
         .flat_map(|group| {
@@ -87,10 +95,12 @@ pub fn resolve_api_resource(
                 .map(move |res| (group, res))
         })
         .filter(|(_, (res, _))| {
-            resources.contains(&res.kind) || resources.contains(&res.plural)        
+            resources.iter().any(|r| 
+                    r.eq_ignore_ascii_case(&res.kind) || 
+                    r.eq_ignore_ascii_case(&res.plural))        
         })
-        .min_by_key(|(group, _res)| group.name())
         .map(|(_, res)| res)
+        .collect()
 }
 
 pub fn dynamic_api(
