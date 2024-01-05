@@ -3,15 +3,20 @@ application:
   host: 0.0.0.0
 kube:
   use_tls: false
-  # events is always element of resources. It's added if missing.
   resources:
-    - deployments
+    - applications
+    - routes
+    - ingresses
   # [] for cluster scope ie all namespaces
-  namespaces: []
+  namespaces:
+    # - tenant-upf
+    - openshift-gitops
 
-  # TODO watch resources per diff namespaces
-  watch:
-    - resources: []
-      namespaces: []
-
+  # resources:
+  #   - name: events
+  #     namespaces: 
+  #       - app-health-5g
+  #     labels: []
+  #     fieldsSelectors:
+  #       - "type!=Mormal"
   

@@ -1561,6 +1561,7 @@ dependencies = [
  "k8s-openapi",
  "kube",
  "once_cell",
+ "regex",
  "reqwest",
  "serde",
  "serde-aux",

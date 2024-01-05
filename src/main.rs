@@ -2,7 +2,9 @@ use rava::startup::run;
 use rava::configuration::get_configuration;
 use rava::telemetry::{get_subscriber, init_subscriber};
 use rava::kube::watch::watch;
+use rava::output;
 use std::net::TcpListener;
+use tokio::sync::mpsc::{Sender, Receiver};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
@@ -11,7 +13,15 @@ async fn main() -> std::io::Result<()> {
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
-    let _ = watch(&configuration).await;
+    match watch(&configuration).await {
+        Ok(rx) => {
+            let (tx, rx): (Sender<WatchEvent>, Receiver<WatchEvent>) = channel(32);
+            let _ = output::simple_print_process(rx).await?;
+        },
+        Err(error) => {
+            tracing::error!("Failed to watch configured resources {:?}", error)
+        }
+    };
 
     // Here we choose to bind explicitly to localhost, 127.0.0.1, for security
     // reasons. This binding may cause issues in some environments. For example,

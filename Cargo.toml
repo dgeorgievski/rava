@@ -45,6 +45,7 @@ anyhow = "1.0.76"
 itertools = "0.10.5"
 futures = "0.3"
 valuable = "0.1"
+regex = {version = "1.10"}
 
 # Dev dependencies are used exclusively when running tests or examples
 # They do not get included in the final application binary!

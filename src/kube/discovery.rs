@@ -1,7 +1,7 @@
 use crate::kube::apigroup::{AllResource, ApiCapabilities, ApiGroup, ApiResource};
 
 use anyhow::Result;
-use itertools::Itertools;
+// use itertools::Itertools;
 use kube::{
     api::{Api, DynamicObject},
     discovery::Scope,
@@ -57,12 +57,9 @@ impl Discovery {
         // query regular groups + crds under /apis
         for g in api_groups.groups {
             let key = g.name.clone();
-            println!("api_groups name: {:?}", key);
-        
             if self.mode.is_queryable(&key) {
                 let apigroup = ApiGroup::query_apis(&self.client, g).await?;
                 self.groups.insert(key, apigroup);
-                println!("  > inserted");
             }
         }
         
@@ -71,7 +68,6 @@ impl Discovery {
         if self.mode.is_queryable(&corekey) {
             let coreapis = self.client.list_core_api_versions().await?;
             let apigroup = ApiGroup::query_core(&self.client, coreapis).await?;
-            println!("  > inserted core {:?}", apigroup.name());
             self.groups.insert(corekey, apigroup);
         }
         Ok(self)
@@ -109,7 +105,7 @@ pub fn dynamic_api(
     client: Client,
     ns: &Vec<String>
 ) -> Vec<Api<DynamicObject>> {
-    let mut dyn_apis = vec![];
+    let mut dyn_apis: Vec<Api<DynamicObject>> = vec![];
 
     if caps.scope == Scope::Cluster || ns.is_empty() {
         dyn_apis.push(Api::all_with(client, &ar.to_kube_ar()));
