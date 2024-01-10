@@ -4,19 +4,18 @@ use rava::telemetry::{get_subscriber, init_subscriber};
 use rava::kube::watch::watch;
 use rava::output;
 use std::net::TcpListener;
-use tokio::sync::mpsc::{Sender, Receiver};
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     let subscriber = get_subscriber("rava".into(), "info".into(), std::io::stdout);
-    init_subscriber(subscriber);
+    init_subscriber(subscriber); 
 
     let configuration = get_configuration().expect("Failed to read configuration.");
 
     match watch(&configuration).await {
-        Ok(rx) => {
-            let (tx, rx): (Sender<WatchEvent>, Receiver<WatchEvent>) = channel(32);
-            let _ = output::simple_print_process(rx).await?;
+        Ok(we) => {
+            let _ = output::cloud_event::setup_cloud_event_output(&configuration, we).await;
+            // let _ = output::setup_output(we).await;
         },
         Err(error) => {
             tracing::error!("Failed to watch configured resources {:?}", error)

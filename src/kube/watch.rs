@@ -16,7 +16,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 use crate::configuration::Settings;
 
 pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
-    tracing::debug!("resources {:?}, namespaces {:?}", conf.kube.resources, conf.kube.namespaces);
+    tracing::debug!("resources {:?}", conf.kube.resources);
     
     let cli = match client::client(conf.kube.use_tls).await {
         Err(why) => {
@@ -31,61 +31,53 @@ pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
 
     let discovery = discovery::new(&cli).await?;
     // Common discovery, parameters, and api configuration for a single resource
-    let api_res = discovery::resolve_api_resources(
+    let api_res = discovery::resolve_api_resources( 
                         &discovery, 
                         &conf.kube.resources);
     
-     // TODO: add label filtering
-    // let mut lp = ListParams::default();
-    // if let Some(label) = app.selector.clone() {
-    //     lp = lp.labels(label.as_str());
-    // }
 
-    // if let Some(name) = app.name.clone() {
-    //     lp = lp.fields(&format!("metadata.name={}", name));
-    // }
-
-    // TODO: add labels later to watcher
-    // let wc = watcher::Config::default();
-    //  .labels("kubernetes.io/lifecycle=spot");
-
-    // let (tx, rx): (Sender<DynamicObject>, Receiver<DynamicObject>) = channel(32);
     let (tx, rx): (Sender<WatchEvent>, Receiver<WatchEvent>) = channel(32);
 
     for (ares, caps) in api_res {
         println!("\n\n ApiRes {:?}\n CAP: {:?}", ares, caps);
-
-        let mut field_event_selector = "";
-        if ares.kind.clone().as_str() == "Event" {
-            field_event_selector = "type!=Normal";
-        }
         
         let dyn_apis = discovery::dynamic_api(
-            ares, 
-            caps,
-            cli.clone(), 
-            &conf.kube.namespaces);
+                                            ares, 
+                                            caps,
+                                            cli.clone(), 
+                                            &conf.kube.resources);
 
-        for api in dyn_apis {
+
+        for apisel in dyn_apis {
             let tx2 = tx.clone();
-            let resource_url: String = api.resource_url().to_owned();
-            // dbg!(&api);
+            let resource_url: String = apisel.api_dyn.resource_url().to_owned();
+            // dbg!(&apisel);
 
             tokio::spawn(async move {
-                // present a dumb table for it for now. kubectl does not do this anymore.
                 let mut wc = watcher::Config::default();
-                if field_event_selector.len() > 0 {
-                    wc.field_selector = Some(field_event_selector.into());
+                if let Some(sel) = apisel.field_selectors {
+                    if sel.len() > 0 {
+                        wc.field_selector = Some(sel.join(","));
+                        println!("Added field selectors {:?} url: {}", wc.field_selector, resource_url);
+                    }
                 }
 
-                let mut stream = watcher(api, wc).
+                if let Some(sel) = apisel.label_selectors {
+                    if sel.len() > 0 {
+                        wc.label_selector = Some(sel.join(","));
+                        println!("Added label selectors {:?} url: {}", wc.label_selector, resource_url);
+                    }
+                }
+
+
+                let mut stream = watcher(apisel.api_dyn, wc).
                                         applied_objects().
                                         boxed();
                 loop {
                     let obj = match stream.try_next().await {
                         Ok(obj) => Some(obj.unwrap()),
-                        Err(error) => {
-                            tracing::error!("failed to get stream response: {:?}", error);
+                        Err(_error) => {
+                            // tracing::error!("failed to get stream response: {:?}", error);
                             None
                         }
                     };

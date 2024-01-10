@@ -3,8 +3,15 @@ use std::convert::{TryFrom, TryInto};
 
 #[derive(serde::Deserialize, Debug, Clone)]
 pub struct Settings {
+    pub name: String,
+    pub nats: NatsProxy,
     pub application: ApplicationSettings,
     pub kube: KubeSettings,
+}
+
+#[derive(serde::Deserialize,  Debug, Clone)]
+pub struct NatsProxy {
+    pub proxy_url: String
 }
 
 #[derive(serde::Deserialize,  Debug, Clone)]
@@ -17,17 +24,36 @@ pub struct ApplicationSettings {
 #[derive(serde::Deserialize, Debug, Clone)]
 pub struct KubeSettings {
     pub use_tls: bool,
-    pub resources: Vec<String>,
-    pub namespaces: Vec<String>,
+    pub resources: Vec<Resource>,
 }
 
 impl Default for KubeSettings {
     fn default() -> KubeSettings {
-        KubeSettings {
+        Self {
             use_tls: false,
-            resources: vec![String::from("events")],
-            namespaces: Vec::new(),
+            resources: Vec::new(),
         } 
+    }
+}
+
+#[derive(serde::Deserialize, Debug, Clone, PartialEq)]
+pub struct Resource {
+    pub name: String,
+    pub namespaces: Vec<String>,
+    pub label_selectors: Vec<String>,
+    pub field_selectors: Vec<String>,
+    pub event_type: String,
+}
+
+impl Default for Resource {
+    fn default() -> Resource {
+        Self {
+            name: String::from("events"),
+            namespaces: Vec::new(),
+            label_selectors: Vec::new(),
+            field_selectors: Vec::new(),
+            event_type: String::from("rava.k8s.event.v1"),
+        }
     }
 }
 
@@ -64,11 +90,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
                 tracing::error!("failed to load config");
                 return Err(why)
             },
-        Ok(mut config) => {
-            if !config.kube.resources.contains(&"event".to_string()) {
-                config.kube.resources.push("events".to_string());
-            }
-
+        Ok(config) => {
             return Ok(config)
         },     
     }

@@ -1,22 +1,51 @@
+# k8s cluster name
+name: "apple"
+
+nats:
+  proxy_url: http://localhost:9080
+  # proxyUrl: https://nats-events-proxy.apps.ci-cd.casa.dev/api/v1/event
+
 application:
   port: 8000
   host: 0.0.0.0
 kube:
   use_tls: false
-  resources:
-    - applications
-    - routes
-    - ingresses
-  # [] for cluster scope ie all namespaces
-  namespaces:
-    # - tenant-upf
-    - openshift-gitops
-
   # resources:
-  #   - name: events
-  #     namespaces: 
-  #       - app-health-5g
-  #     labels: []
-  #     fieldsSelectors:
-  #       - "type!=Mormal"
+  #   - applications
+  #   - routes
+  #   - ingresses
+  #   # - pods
+  # # [] for cluster scope ie all namespaces
+  # namespaces: 
+  #   # - dimi
+  #   # - tenant-upf
+  #   - openshift-gitops
+
+  # # todo make config resource specific
+  resources:
+    - name: events
+      namespaces: []
+        # - app-health-5g
+      label_selectors: []
+        # - name: app.kubernetes.io/part-of
+        #   value: argocd
+      field_selectors:
+        - "type=Normal"
+      event_type: "rava.k8s.event.v1"
+    # - name: applications
+    #   namespaces: 
+    #     - argocd
+    # #     - openshift-gitops
+    #   label_selectors: []
+    #     # - name: app.kubernetes.io/part-of
+    #     #   value: argocd
+    #   field_selectors: [] 
+    #   event_type: "rava.k8s.apps.v1"
+    - name: pods
+      namespaces: ["dimi"]
+      label_selectors:
+        - run=net01
+      field_selectors: []
+      event_type: "rava.k8s.pods.v1"
+
   

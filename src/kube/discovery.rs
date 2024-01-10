@@ -1,13 +1,15 @@
 use crate::kube::apigroup::{AllResource, ApiCapabilities, ApiGroup, ApiResource};
+use crate::configuration as config;
+use std::collections::{HashMap, HashSet};
 
 use anyhow::Result;
-// use itertools::Itertools;
+use itertools::Itertools;
+
 use kube::{
     api::{Api, DynamicObject},
     discovery::Scope,
     Client,
 };
-use std::collections::HashMap;
 
 #[allow(dead_code)]
 enum DiscoveryMode {
@@ -76,12 +78,20 @@ impl Discovery {
 
 pub fn resolve_api_resources(
     discovery: &Discovery,
-    resources: &Vec<String>,
+    resources: &Vec<config::Resource>,
 )-> Vec<(ApiResource, ApiCapabilities)> {
+    // collect unique resource names - events, applications, etc.
+    let res_names: HashSet<String> = resources
+                    .iter()
+                    .map(|res|{
+                        res.name.clone()
+                    })
+                    .unique()
+                    .collect();
+
     // iterate through groups to find matching kind/plural names at recommended versions
     // and then take the minimal match by group.name (equivalent to sorting groups by group.name).
     // this is equivalent to kubectl's api group preference
-
     discovery
         .groups()
         .flat_map(|group| {
@@ -91,37 +101,105 @@ pub fn resolve_api_resources(
                 .map(move |res| (group, res))
         })
         .filter(|(_, (res, _))| {
-            resources.iter().any(|r| 
-                    r.eq_ignore_ascii_case(&res.kind) || 
-                    r.eq_ignore_ascii_case(&res.plural))        
+            let mut is_found = false;
+            for r in &res_names {
+                if r.eq_ignore_ascii_case(&res.kind) || 
+                    r.eq_ignore_ascii_case(&res.plural) {
+                        is_found = true;
+                        break;    
+                    }
+            }
+
+            is_found
         })
         .map(|(_, res)| res)
         .collect()
+}
+
+#[derive(Debug, Clone)]
+pub struct ApiWithSelectors {
+    pub label_selectors: Option<Vec<String>>,
+    pub field_selectors: Option<Vec<String>>,
+    pub api_dyn: Api<DynamicObject>,
 }
 
 pub fn dynamic_api(
     ar: ApiResource,
     caps: ApiCapabilities,
     client: Client,
-    ns: &Vec<String>
-) -> Vec<Api<DynamicObject>> {
-    let mut dyn_apis: Vec<Api<DynamicObject>> = vec![];
+    resources: &Vec<config::Resource>,
+) -> Vec<ApiWithSelectors> {
 
-    if caps.scope == Scope::Cluster || ns.is_empty() {
-        dyn_apis.push(Api::all_with(client, &ar.to_kube_ar()));
-    } else if ns.len() > 0 {
-        for n in ns {
-            let ar_cl = ar.clone();
-            let dt = ar_cl.to_kube_ar();
-            dyn_apis.push(Api::namespaced_with(client.clone(), n, &dt));
+    let mut dyn_apis: Vec<ApiWithSelectors> = vec![];
+    // let key_kind = resources.get(&ar.kind);
+    // if key_kind == None { return dyn_apis }
+    let ar_kind = ar.kind.clone().to_ascii_lowercase();
+    let ar_plural = ar.plural.clone().to_ascii_lowercase();
+
+    for res in resources {
+        let r_kind = res.name.to_ascii_lowercase();
+        // println!(" > checking {:?} == {:?} == {:?}", r_kind, ar_kind, ar_plural);
+        if r_kind != ar_kind && r_kind != ar_plural{
+            continue;
         }
-    } else {
-        dyn_apis.push(Api::default_namespaced_with(client, &ar.to_kube_ar()));
+
+        if caps.scope == Scope::Cluster {
+            dyn_apis.push(ApiWithSelectors{
+                label_selectors: Some(res.label_selectors.clone()),
+                field_selectors: Some(res.field_selectors.clone()),
+                api_dyn: Api::all_with(client.clone(), 
+                                        &ar.clone().to_kube_ar()),
+            });
+        } else if res.namespaces.len() > 0 {
+            for ns in &res.namespaces {
+                    dyn_apis.push(ApiWithSelectors{
+                        label_selectors: Some(res.label_selectors.clone()),
+                        field_selectors: Some(res.field_selectors.clone()),
+                        api_dyn: Api::namespaced_with(client.clone(), 
+                                                        &ns, 
+                                                        &ar.clone().to_kube_ar())}
+                    );
+            }
+        } else if res.namespaces.len() == 0 {
+            dyn_apis.push(ApiWithSelectors{
+                label_selectors: Some(res.label_selectors.clone()),
+                field_selectors: Some(res.field_selectors.clone()),
+                api_dyn: Api::all_with(client.clone(), 
+                                        &ar.clone().to_kube_ar())}
+            );
+        } else {
+            tracing::error!("No resources provided");
+            // dyn_apis.push(Api::default_namespaced_with(client, &ar.to_kube_ar()));
+        };    
     };
 
     dyn_apis
 
 }
+
+// pub fn dynamic_api(
+//     ar: ApiResource,
+//     caps: ApiCapabilities,
+//     client: Client,
+//     ns: &Vec<String>
+// ) -> Vec<Api<DynamicObject>> {
+//     let mut dyn_apis: Vec<Api<DynamicObject>> = vec![];
+
+//     if caps.scope == Scope::Cluster || ns.is_empty() {
+//         dyn_apis.push(Api::all_with(client, &ar.to_kube_ar()));
+//     } else if ns.len() > 0 {
+//         for n in ns {
+//             let ar_cl = ar.clone();
+//             let dt = ar_cl.to_kube_ar();
+//             dyn_apis.push(Api::namespaced_with(client.clone(), n, &dt));
+//         }
+//     } else {
+//         dyn_apis.push(Api::default_namespaced_with(client, &ar.to_kube_ar()));
+//     };
+
+//     dyn_apis
+
+// }
 
 pub async fn new(cli: &Client) -> Result<Discovery> {
     let discovery = Discovery::new(cli.clone()).run().await?;
