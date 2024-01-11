@@ -1,0 +1,48 @@
+# k8s cluster name
+name: "apple"
+
+nats:
+  proxy_url: http://localhost:9080
+
+application:
+  port: 8000
+  host: 0.0.0.0
+kube:
+  use_tls: false
+
+  # # todo make config resource specific
+  resources:
+    - name: events
+      namespaces: []
+        # - app-health-5g
+      label_selectors: []
+        # - name: app.kubernetes.io/part-of
+        #   value: argocd
+      field_selectors:
+        - "type!=Normal"
+      event_type: "casa.k8s.event.v1"
+    # - name: applications
+    #   namespaces: 
+    #     - argocd
+    # #     - openshift-gitops
+    #   label_selectors: []
+    #     # - name: app.kubernetes.io/part-of
+    #     #   value: argocd
+    #   field_selectors: [] 
+    #   event_type: "cas.k8s.apps.v1"
+    - name: routes
+      namespaces: []
+        # - argocd
+        # - openshift-gitops
+      label_selectors: 
+        - app.kubernetes.io/part-of=argocd
+      field_selectors: [] 
+      event_type: "casa.openshift.routes.v1"
+    # - name: pods
+    #   namespaces: ["dimi"]
+    #   label_selectors:
+    #     - run=net01
+    #   field_selectors: []
+    #   event_type: "casa.k8s.pods.v1"
+
+  
