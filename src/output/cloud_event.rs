@@ -88,7 +88,7 @@ pub async fn http_post_ce(target: String,
             // println!("\n{:?}\n", obj_json);
             let res_ce = match EventBuilderV10::new()
                         .id(&Uuid::new_v4().hyphenated().to_string())
-                        .ty("rava.event.v1")
+                        .ty("healthcat.event.v1")
                         .source("http://localhost")
                         .data("application/json", obj_json)
                         .build() 

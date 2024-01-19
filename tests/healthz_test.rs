@@ -1,8 +1,7 @@
 use std::net::TcpListener;
-use rava::telemetry::{get_subscriber, init_subscriber};
-use uuid::Uuid;
-use rava::startup::run;
-use rava::configuration::get_configuration;
+use healthcat::telemetry::{get_subscriber, init_subscriber};
+use healthcat::startup::run;
+use healthcat::configuration::get_configuration;
 use once_cell::sync::Lazy;
 
 // Ensure that the `tracing` stack is only initialised once using `once_cell`
@@ -39,7 +38,7 @@ fn spawn_app() -> TestApp {
     let port = listener.local_addr().unwrap().port();
     let address = format!("http://127.0.0.1:{}", port);
 
-    let mut configuration = get_configuration().expect("Failed to read configuration.");
+    let mut _configuration = get_configuration().expect("Failed to read configuration.");
    
     let server = run(listener).expect("Failed to bind address");
     let _ = tokio::spawn(server);

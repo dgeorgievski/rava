@@ -1,5 +1,5 @@
 [package]
-name = "rava"
+name = "healthcat"
 version = "0.1.0"
 authors = ["Dimitar Georgievski <dgeorgievski@gmail.com>"]
 edition = "2021"
@@ -11,7 +11,7 @@ path = "src/lib.rs"
 
 [[bin]]
 path = "src/main.rs"
-name = "rava"
+name = "healthcat"
 
 # On Linux:
 # - Ubuntu, `sudo apt-get install lld clang`

@@ -1,13 +1,13 @@
-use rava::startup::run;
-use rava::configuration::get_configuration;
-use rava::telemetry::{get_subscriber, init_subscriber};
-use rava::kube::watch::watch;
-use rava::output;
+use healthcat::startup::run;
+use healthcat::configuration::get_configuration;
+use healthcat::telemetry::{get_subscriber, init_subscriber};
+use healthcat::kube::watch::watch;
+use healthcat::output;
 use std::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
-    let subscriber = get_subscriber("rava".into(), "info".into(), std::io::stdout);
+    let subscriber = get_subscriber("healthcat".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber); 
 
     let configuration = get_configuration().expect("Failed to read configuration.");
