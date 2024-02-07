@@ -4,6 +4,7 @@ mod discovery;
 pub mod dynamic_object;
 pub mod watch;
 pub mod watch_event;
+pub mod tekton_metrics;
 
 pub use client::client;
 pub use discovery::new;

@@ -4,6 +4,7 @@ use std::convert::{TryFrom, TryInto};
 #[derive(serde::Deserialize, Debug, Clone)]
 pub struct Settings {
     pub name: String,
+    pub cluster_annotation: String,
     pub nats: NatsProxy,
     pub application: ApplicationSettings,
     pub kube: KubeSettings,
@@ -84,13 +85,13 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
                 .separator("__"),
         )
         .build()?;
-
     match settings.try_deserialize::<Settings>() {
         Err(why) => {
                 tracing::error!("failed to load config");
                 return Err(why)
             },
         Ok(config) => {
+            dbg!(&config);
             return Ok(config)
         },     
     }

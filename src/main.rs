@@ -13,9 +13,8 @@ async fn main() -> std::io::Result<()> {
     let configuration = get_configuration().expect("Failed to read configuration.");
 
     match watch(&configuration).await {
-        Ok(we) => {
-            let _ = output::cloud_event::setup_cloud_event_output(&configuration, we).await;
-            // let _ = output::setup_output(we).await;
+        Ok(rx_we) => {
+            let _ = output::cloud_event::setup_cloud_event_output(&configuration, rx_we).await;
         },
         Err(error) => {
             tracing::error!("Failed to watch configured resources {:?}", error)

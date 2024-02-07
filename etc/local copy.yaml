@@ -1,8 +1,8 @@
 # k8s cluster name
 name: "ci-cd"
 
-nats:
-  proxy_url: http://nats-events-proxy.app-health-5g.svc.cluster.local
+# nats:
+#   proxy_url: https://nats-events-proxy.apps.ci-cd.casa.dev/api/v1/event
 
 application:
   port: 8000
@@ -10,10 +10,21 @@ application:
 kube:
   use_tls: false
 
+  
   resources:
+    # - name: podmetrics
+    #   namespaces:
+    #     - tenant-smf
+    #   label_selectors: []
+    #     # - app.kubernetes.io/managed-by=tekton-pipelines 
+    #   field_selectors: []
+    #   event_type: healthcat.tekton.podmetrics.v1
     - name: pipelines
       namespaces:
         - casa-platform-ci
+        # - app-health-5g
+        # - argocd
+        # - openshift-gitops
       label_selectors: []
       field_selectors:
         - metadata.name=vzw-tekton-server-e2e
@@ -22,6 +33,9 @@ kube:
     - name: pipelineruns
       namespaces:
         - casa-platform-ci
+        # - app-health-5g
+        # - argocd
+        # - openshift-gitops
       label_selectors:
         - tekton.dev/pipeline=vzw-tekton-server-e2e
       field_selectors: [] 
@@ -30,6 +44,9 @@ kube:
     - name: tasks
       namespaces:
         - casa-platform-ci
+        # - app-health-5g
+        # - argocd
+        # - openshift-gitops
       label_selectors: []
       field_selectors: []
       event_type: "healthcat.tekton.task.v1"
@@ -37,6 +54,9 @@ kube:
     - name: taskruns
       namespaces:
         - casa-platform-ci
+        # - app-health-5g
+        # - argocd
+        # - openshift-gitops
       label_selectors:
         - tekton.dev/pipeline=vzw-tekton-server-e2e
       field_selectors: [] 

@@ -120,6 +120,7 @@ pub fn resolve_api_resources(
 pub struct ApiWithSelectors {
     pub label_selectors: Option<Vec<String>>,
     pub field_selectors: Option<Vec<String>>,
+    pub event_type: String,
     pub api_dyn: Api<DynamicObject>,
 }
 
@@ -145,6 +146,7 @@ pub fn dynamic_api(
 
         if caps.scope == Scope::Cluster {
             dyn_apis.push(ApiWithSelectors{
+                event_type: res.event_type.clone(),
                 label_selectors: Some(res.label_selectors.clone()),
                 field_selectors: Some(res.field_selectors.clone()),
                 api_dyn: Api::all_with(client.clone(), 
@@ -153,6 +155,7 @@ pub fn dynamic_api(
         } else if res.namespaces.len() > 0 {
             for ns in &res.namespaces {
                     dyn_apis.push(ApiWithSelectors{
+                        event_type: res.event_type.clone(),
                         label_selectors: Some(res.label_selectors.clone()),
                         field_selectors: Some(res.field_selectors.clone()),
                         api_dyn: Api::namespaced_with(client.clone(), 
@@ -162,6 +165,7 @@ pub fn dynamic_api(
             }
         } else if res.namespaces.len() == 0 {
             dyn_apis.push(ApiWithSelectors{
+                event_type: res.event_type.clone(),
                 label_selectors: Some(res.label_selectors.clone()),
                 field_selectors: Some(res.field_selectors.clone()),
                 api_dyn: Api::all_with(client.clone(), 
@@ -176,30 +180,6 @@ pub fn dynamic_api(
     dyn_apis
 
 }
-
-// pub fn dynamic_api(
-//     ar: ApiResource,
-//     caps: ApiCapabilities,
-//     client: Client,
-//     ns: &Vec<String>
-// ) -> Vec<Api<DynamicObject>> {
-//     let mut dyn_apis: Vec<Api<DynamicObject>> = vec![];
-
-//     if caps.scope == Scope::Cluster || ns.is_empty() {
-//         dyn_apis.push(Api::all_with(client, &ar.to_kube_ar()));
-//     } else if ns.len() > 0 {
-//         for n in ns {
-//             let ar_cl = ar.clone();
-//             let dt = ar_cl.to_kube_ar();
-//             dyn_apis.push(Api::namespaced_with(client.clone(), n, &dt));
-//         }
-//     } else {
-//         dyn_apis.push(Api::default_namespaced_with(client, &ar.to_kube_ar()));
-//     };
-
-//     dyn_apis
-
-// }
 
 pub async fn new(cli: &Client) -> Result<Discovery> {
     let discovery = Discovery::new(cli.clone()).run().await?;

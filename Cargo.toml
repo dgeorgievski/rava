@@ -48,6 +48,7 @@ valuable = "0.1"
 regex = {version = "1.10"}
 reqwest = { version = "^0.11", features = ["json"] }
 cloudevents-sdk = { version = "0.7.0", features = ["reqwest"]}
+chrono = { version = "0.4"}
 
 # Dev dependencies are used exclusively when running tests or examples
 # They do not get included in the final application binary!
