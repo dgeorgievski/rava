@@ -56,8 +56,8 @@ pub struct PodMetrics {
 pub async fn poll_pod_metrics(conf: &Settings) -> Result<Sender<PodMetrics>> {
     let (tx, mut rx): (Sender<PodMetrics>, Receiver<PodMetrics>) = channel(32);
     let (tx_cmd, rx_cmd): (Sender<Command>, Receiver<Command>) = channel(32);
-    let mut ipoll = time::interval(Duration::from_secs(3)); 
-    let mut ipub = time::interval(Duration::from_secs(6)); 
+    let mut ipoll = time::interval(Duration::from_secs(30)); 
+    let mut ipub = time::interval(Duration::from_secs(300)); 
 
     // thread 1: receive TaskRun name
     let tx_cmd2 = tx_cmd.clone();
@@ -287,7 +287,8 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
     tokio::spawn(async move{
         while let Some(pm) = rx.recv().await {
             let pod_name = &format!("{}-pod", pm.name);
-            tracing::info!("checking {}/{}", pm.namespace, pod_name);
+            // tracing::info!("checking {}/{}", pm.namespace, pod_name);
+            // println!(">> checking {}/{}", pm.namespace, pod_name);
 
             let api: Api<DynamicObject> = Api::namespaced_with(
                 cli.clone(), 

@@ -5,3 +5,4 @@ pub mod telemetry;
 pub mod errors;
 pub mod kube;
 pub mod output;
+pub mod version;

@@ -91,7 +91,7 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
                 return Err(why)
             },
         Ok(config) => {
-            dbg!(&config);
+            // dbg!(&config);
             return Ok(config)
         },     
     }

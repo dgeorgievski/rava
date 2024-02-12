@@ -1,0 +1,19 @@
+# k8s cluster name
+name: "apple"
+
+# Annotation injected with every event
+# healthcat-events/cluster: {name}
+cluster_annotation: "healthcat-events/cluster"
+
+nats:
+  proxy_url: http://localhost:9080
+
+application:
+  port: 8000
+  host: 0.0.0.0
+kube:
+  use_tls: false
+
+  # # todo make config resource specific
+  resources: []
+   

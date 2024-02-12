@@ -1,10 +1,10 @@
 # k8s cluster name
 name: "ci-cd"
 
-# nats:
-#   proxy_url: https://nats-events-proxy.apps.ci-cd.casa.dev/api/v1/event
 nats:
-  proxy_url: http://localhost:9080
+  proxy_url: https://nats-events-proxy.apps.ci-cd.casa.dev/api/v1/event
+# nats:
+#   proxy_url: http://localhost:9080
 
 application:
   port: 8000
@@ -15,6 +15,9 @@ kube:
     - name: pipelines
       namespaces:
         - app-health-5g
+        # - casa-platform-ci
+        # - casa-smf-ci
+        # - casa-upf-ci
       label_selectors: []
       field_selectors: []
       event_type: "healthcat.tekton.pipeline.v1"
@@ -22,6 +25,9 @@ kube:
     - name: pipelineruns
       namespaces: 
         - app-health-5g
+        # - casa-platform-ci
+        # - casa-smf-ci
+        # - casa-upf-ci
       label_selectors: []
       field_selectors: [] 
       event_type: "healthcat.tekton.pipelinerun.v1"
@@ -29,6 +35,9 @@ kube:
     - name: tasks
       namespaces:
         - app-health-5g
+        # - casa-platform-ci
+        # - casa-smf-ci
+        # - casa-upf-ci
       label_selectors: []
       field_selectors: []
       event_type: "healthcat.tekton.task.v1"
@@ -36,6 +45,9 @@ kube:
     - name: taskruns
       namespaces:
         - app-health-5g
+        # - casa-platform-ci
+        # - casa-smf-ci
+        # - casa-upf-ci
       label_selectors: []
       field_selectors: [] 
       event_type: "healthcat.tekton.taskrun.v1"

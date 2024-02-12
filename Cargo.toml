@@ -1,7 +1,7 @@
 [package]
 name = "healthcat"
-version = "0.1.0"
-authors = ["Dimitar Georgievski <dgeorgievski@gmail.com>"]
+version = "0.1.5"
+authors = ["Dimitar Georgievski <dimitar.georgievski@casa-systems.com>"]
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -49,9 +49,15 @@ regex = {version = "1.10"}
 reqwest = { version = "^0.11", features = ["json"] }
 cloudevents-sdk = { version = "0.7.0", features = ["reqwest"]}
 chrono = { version = "0.4"}
+semver = { version = "1.0.21"}
 
 # Dev dependencies are used exclusively when running tests or examples
 # They do not get included in the final application binary!
 [dev-dependencies]
 reqwest = { version = "0.11", features = ["json"] }
 once_cell = "1.7.2"
+
+
+[profile.release]
+lto = true
+codegen-units = 1

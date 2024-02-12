@@ -13,7 +13,7 @@ use tracing_subscriber::{layer::SubscriberExt, EnvFilter, Registry};
 /// type of the returned subscriber, which is indeed quite complex.
 pub fn get_subscriber<Sink>(
     name: String,
-    env_filter: String, 
+    env_filter: String,  
     sink: Sink,
 ) -> impl Subscriber + Sync + Send
 where
@@ -22,6 +22,7 @@ where
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
     let formatting_layer = BunyanFormattingLayer::new(name, sink);
+
     Registry::default()
         .with(env_filter)
         .with(JsonStorageLayer)
@@ -32,6 +33,13 @@ where
 ///
 /// It should only be called once!
 pub fn init_subscriber(subscriber: impl Subscriber + Sync + Send) {
-    LogTracer::init().expect("Failed to set logger");
+    // list of targets to ignore, like /healthz healthcheck
+    let mut ignore_targets: Vec<String> = Vec::new();
+    ignore_targets.push("healthcheck".to_string());
+    ignore_targets.push("tracing_actix_web".to_string());
+
+    LogTracer::builder()
+    .ignore_all(ignore_targets)
+    .init().expect("Failed to set logger");
     set_global_default(subscriber).expect("Failed to set subscriber");
 }

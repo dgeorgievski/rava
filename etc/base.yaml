@@ -15,7 +15,7 @@ kube:
   use_tls: false
 
   # # todo make config resource specific
-  resources:
+  resources: []
     # - name: events
     #   namespaces:
     #     - app-health-5g
@@ -26,14 +26,14 @@ kube:
     #     - "type!=Normal"
     #   event_type: "healthcat.k8s.event.v1"
     
-    - name: pipelines
-      namespaces:
-        - app-health-5g
-        # - argocd
-        # - openshift-gitops
-      label_selectors: []
-      field_selectors: [] 
-      event_type: "healthcat.tekton.pipeline.v1"
+    # - name: pipelines
+    #   namespaces:
+    #     - app-health-5g
+    #     # - argocd
+    #     # - openshift-gitops
+    #   label_selectors: []
+    #   field_selectors: [] 
+    #   event_type: "healthcat.tekton.pipeline.v1"
 
     # - name: pipelineruns
     #   namespaces:
