@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations: {}
+  labels:
+    5g-core.casa-systems.com/taskType: image-scan
+    app.kubernetes.io/instance: tekton-catalog
+    app.kubernetes.io/version: 0.4.0
+  name: grype-scan-image
+  namespace: dimitar
+spec:
+  description: This task scans an image for security vulnerabilities using Grype
+  params:
+  - default: $(workspaces.source.path)/image.tar
+    description: Path to the image to be copied to the destination registry
+    name: srcImage
+    type: string
+  steps:
+  - args:
+    - Vulnerability level set to fail on critical
+    command:
+    - echo
+    computeResources: {}
+    image: docker.artifactory.casa-systems.com/docker:stable
+    name: echo-vul-level
+  - args:
+    - $(params.srcImage)
+    - -f
+    - critical
+    - --add-cpes-if-none
+    command:
+    - /grype
+    computeResources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    env:
+    - name: GRYPE_REGISTRY_INSECURE_SKIP_TLS_VERIFY
+      value: "true"
+    image: artifactory.casa-systems.com/docker/anchore/grype:latest
+    name: grype-scan
+  workspaces:
+  - description: Workspace to dump the output of Grype JSON file
+    name: output
+  - description: Workspace that has the built image
+    name: source

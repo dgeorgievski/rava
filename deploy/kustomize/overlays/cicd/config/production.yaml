@@ -7,12 +7,16 @@ nats:
 application:
   port: 8000
   host: 0.0.0.0
+
+# pod_metrics: []
+
 kube:
   use_tls: false
 
   resources:
     - name: pipelines
       namespaces:
+        - dimitar
         - app-health-5g
         - casa-platform-ci
         - casa-smf-ci
@@ -22,7 +26,8 @@ kube:
       event_type: "healthcat.tekton.pipeline.v1"
 
     - name: pipelineruns
-      namespaces: 
+      namespaces:
+        - dimitar 
         - app-health-5g
         - casa-platform-ci
         - casa-smf-ci
@@ -33,6 +38,7 @@ kube:
 
     - name: tasks
       namespaces:
+        - dimitar
         - app-health-5g
         - casa-platform-ci
         - casa-smf-ci
@@ -43,6 +49,7 @@ kube:
 
     - name: taskruns
       namespaces:
+        - dimitar
         - app-health-5g
         - casa-platform-ci
         - casa-smf-ci
@@ -50,3 +57,4 @@ kube:
       label_selectors: []
       field_selectors: [] 
       event_type: "healthcat.tekton.taskrun.v1"
+      

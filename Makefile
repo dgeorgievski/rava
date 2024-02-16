@@ -12,10 +12,11 @@ build:
 run:
 	cargo run 
 
-build-container:
+build-docker:
+	cargo check
 	docker build -t $(DOCKER_IMAGE_NAME):$(VERSION) .
 
-push-container:
+push-docker:
 	docker push $(DOCKER_IMAGE_NAME):$(VERSION)
 
 version-get:

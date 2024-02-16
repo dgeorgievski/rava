@@ -1,0 +1,55 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/platforms: linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
+  labels:
+    5g-core.casa-systems.com/taskType: image-push
+    app.kubernetes.io/instance: tekton-catalog
+    app.kubernetes.io/version: 0.3.0
+  name: skopeo-push
+  namespace: dimitar
+spec:
+  description: |-
+    This Task uses Skopeo to push a container image to a container registry.
+    The Task expects a Docker archive (e.g. a tarball) as an input.
+    Registry credentials must be provided in the TaskRun or PipelineRun definition. It is recommended that use a Kubernetes Secret to provide registry credentials.
+  params:
+  - default: config.json
+    description: Path to the authfile the can be used to authenticate with the  destination
+      registry
+    name: authfile
+    type: string
+  - default: image.tar
+    description: Path to the image to be copied to the destination registry
+    name: srcImage
+    type: string
+  - default: ""
+    description: URL of the image where the image from source should be copied to
+    name: destImageURL
+    type: string
+  - default: "true"
+    description: Verify the TLS on the dest registry endpoint
+    name: destTLSverify
+    type: string
+  steps:
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 1Gi
+      requests:
+        cpu: "1"
+        memory: 500Mi
+    image: quay.io/skopeo/stable:v1.5.2
+    name: skopeo-push
+    script: |
+      skopeo copy docker-archive:$(workspaces.source.path)/$(params.srcImage) \
+      docker://$(params.destImageURL) \
+      --dest-tls-verify=$(params.destTLSverify) \
+      --authfile=$(workspaces.registry-credentials.path)/$(params.authfile)
+  workspaces:
+  - description: Workspace that has the built image
+    name: source
+  - description: Registry credentials for the target registry
+    name: registry-credentials

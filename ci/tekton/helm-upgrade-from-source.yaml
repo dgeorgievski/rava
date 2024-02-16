@@ -1,0 +1,65 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/categories: Deployment
+    tekton.dev/platforms: linux/amd64,linux/s390x,linux/ppc64le,linux/arm64
+    tekton.dev/tags: helm
+  labels:
+    app.kubernetes.io/instance: tekton-catalog
+    app.kubernetes.io/version: 0.1.0
+  name: helm-upgrade-from-source
+  namespace: dimitar
+spec:
+  description: Upgrade or install a Helm Release
+  params:
+  - description: The directory in source that contains the Helm chart
+    name: charts_dir
+    type: string
+  - default: v1.0.0
+    description: Helm release version in semantic versioning format
+    name: release_version
+    type: string
+  - default: helm-release
+    description: Helm release name
+    name: release_name
+    type: string
+  - default: ""
+    description: Helm release namespace
+    name: release_namespace
+    type: string
+  - default: ""
+    description: 'Specify the values you want to overwrite, comma separated: autoscaling.enabled=true,replicas=1'
+    name: overwrite_values
+    type: string
+  - default: values.yaml
+    description: The values file to use
+    name: values_file
+    type: string
+  - default: docker.artifactory.casa-systems.com/lachlanevenson/k8s-helm:v3.10.2
+    description: Helm image to use
+    name: helm_image
+    type: string
+  - default: ""
+    description: Extra parameters passed for the helm upgrade command
+    name: upgrade_extra_params
+    type: string
+  steps:
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 750Mi
+      requests:
+        cpu: 250m
+        memory: 100Mi
+    image: $(params.helm_image)
+    name: upgrade
+    script: |-
+      echo current installed Helm Releases
+      helm list --namespace "$(params.release_namespace)"
+
+      echo installing Helm Release...
+      helm upgrade --install --wait --values "$(params.charts_dir)/$(params.values_file)" --namespace "$(params.release_namespace)" --version "$(params.release_version)" "$(params.release_name)" "$(params.charts_dir)" --debug --set "$(params.overwrite_values)" $(params.upgrade_extra_params)
+    workingDir: /workspace/source
+  workspaces:
+  - name: source

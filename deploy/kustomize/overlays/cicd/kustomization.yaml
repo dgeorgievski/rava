@@ -3,7 +3,13 @@ kind: Kustomization
 namespace: app-health-5g
 images:
   - name: registry.gitlab.casa-systems.com/dimitar.georgievski/healthcat-rs
-    newTag: 0.1.5
+    newTag: 0.1.9
+
+configMapGenerator:
+  - name: healthcat-rs-config
+    behavior: merge
+    files:
+    - config/production.yaml
 
 resources:
 - rbac-argocd.yaml
@@ -11,7 +17,7 @@ resources:
 - ../../base
 
 patches:
-- path: patch.yaml
+- path: patch.yaml 
   target:
     kind: Deployment
     name: healthcat-rs

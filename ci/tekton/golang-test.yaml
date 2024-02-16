@@ -1,0 +1,86 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/categories: Testing
+    tekton.dev/displayName: golang test
+    tekton.dev/pipelines.minVersion: 0.12.1
+    tekton.dev/platforms: linux/amd64,linux/s390x,linux/ppc64le
+    tekton.dev/tags: test
+  labels:
+    5g-core.casa-systems.com/taskType: test
+    app.kubernetes.io/instance: tekton-catalog
+    app.kubernetes.io/version: 0.4.3
+  name: golang-test
+  namespace: dimitar
+spec:
+  description: This Task is Golang task to test Go projects.
+  params:
+  - description: package (and its children) under test
+    name: package
+    type: string
+  - default: ./...
+    description: 'packages to test (default: ./...)'
+    name: packages
+    type: string
+  - default: .
+    description: path to the directory to use as context.
+    name: context
+    type: string
+  - default: -mod=vendor -race -cover -v
+    description: flags to use for the test command
+    name: flags
+    type: string
+  - default: linux
+    description: running program's operating system target
+    name: GOOS
+    type: string
+  - default: amd64
+    description: running program's architecture target
+    name: GOARCH
+    type: string
+  - default: ""
+    description: Go caching directory path
+    name: GOCACHE
+    type: string
+  - default: ""
+    description: Go mod caching directory path
+    name: GOMODCACHE
+    type: string
+  - default: registry.gitlab.casa-systems.com/platform/sdk:v0.10.2
+    description: Image used in Task
+    name: image
+    type: string
+  steps:
+  - computeResources:
+      limits:
+        cpu: 2500m
+        memory: 2Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    env:
+    - name: GOOS
+      value: $(params.GOOS)
+    - name: GOARCH
+      value: $(params.GOARCH)
+    - name: GOCACHE
+      value: $(params.GOCACHE)
+    - name: GOMODCACHE
+      value: $(params.GOMODCACHE)
+    image: $(params.image)
+    name: golang-test
+    script: |
+      SRC_PATH="$(workspaces.source.path)/golang/$(params.package)"
+
+      if [ ! -e $SRC_PATH/go.mod ];then
+         mkdir -p $SRC_PATH
+         cp -R "$(workspaces.source.path)/$(params.context)"/* $SRC_PATH
+         cp -R "$(workspaces.source.path)/$(params.context)"/.[!.]* $SRC_PATH
+      fi
+      cd $SRC_PATH
+
+      go test $(params.flags) $(params.packages)
+    workingDir: $(workspaces.source.path)
+  workspaces:
+  - name: source

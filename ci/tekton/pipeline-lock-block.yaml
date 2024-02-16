@@ -1,0 +1,56 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/instance: vzw-tekton-server-catalog
+    app.kubernetes.io/version: 0.1.0
+    testing.casa-systems.com/type: helper
+  name: pipeline-lock-block
+  namespace: dimitar
+spec:
+  description: Blocks other TaskRuns from executing until the Git project specific
+    Lease is held
+  params:
+  - default: 5s
+    description: Interval between checks for running PipelineRuns
+    name: interval
+    type: string
+  - description: Git project name
+    name: project
+    type: string
+  - default: 5m
+    description: Maximum duration for waiting for running PipelineRuns
+    name: timeout
+    type: string
+  - default: registry.gitlab.casa-systems.com/mate.szalai/pipeline-lock/tekton-pipeline-lock:latest
+    description: Pipeline Lock image
+    name: image
+    type: string
+  steps:
+  - args:
+    - --interval=$(params.interval)
+    - --project=$(params.project)
+    - --timeout=$(params.timeout)
+    command:
+    - /pipeline-lock
+    - block
+    computeResources:
+      limits:
+        cpu: 200m
+        memory: 100Mi
+      requests:
+        cpu: 10m
+        memory: 10Mi
+    env:
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+    image: $(params.image)
+    imagePullPolicy: Always
+    name: pipeline-lock

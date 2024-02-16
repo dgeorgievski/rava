@@ -1,0 +1,8 @@
+apiVersion: v1
+data:
+  config.json: ewoJImF1dGhzIjogewoJCSJodHRwczovL2luZGV4LmRvY2tlci5pby92MS8iOiB7CgkJCSJhdXRoIjogIlpHZGxiM0puYVdWMmMydHBPbE5sWkdGdE1sTmxaR0Z0TTFKaGRtRTAiCgkJfSwKICAgICJyZWdpc3RyeS5naXRsYWIuY2FzYS1zeXN0ZW1zLmNvbSI6IHsKICAgICAgImF1dGgiOiAiWVhCcExXMWhhVzQ2ZEc0MWMwdERlWFJvY21ORmRXTTJUWFY0UjFFPSIKICAgIH0KICB9Cn0KCg==
+kind: Secret
+metadata:
+  name: gitlab-skopeo-auth-file
+  namespace: dimitar
+type: Opaque

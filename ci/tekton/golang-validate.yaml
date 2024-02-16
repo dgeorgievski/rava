@@ -1,0 +1,180 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/pipelines.minVersion: 0.12.1
+  labels:
+    5g-core.casa-systems.com/taskType: validation
+    app.kubernetes.io/instance: tekton-catalog
+    app.kubernetes.io/version: 0.4.2
+  name: golang-validate
+  namespace: dimitar
+spec:
+  params:
+  - description: package (and its children) under validation
+    name: package
+    type: string
+  - default: ./...
+    description: 'packages to validate (default: ./...)'
+    name: packages
+    type: string
+  - default: .
+    description: path to the directory to use as context.
+    name: context
+    type: string
+  - default: linux
+    description: running program's operating system target
+    name: GOOS
+    type: string
+  - default: amd64
+    description: running program's architecture target
+    name: GOARCH
+    type: string
+  - default: ""
+    description: Go caching directory path
+    name: GOCACHE
+    type: string
+  - default: ""
+    description: Go mod caching directory path
+    name: GOMODCACHE
+    type: string
+  - default: registry.gitlab.casa-systems.com/platform/sdk:v0.10.2
+    description: Image used in Task
+    name: image
+    type: string
+  steps:
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    env:
+    - name: GOPATH
+      value: /workspace
+    - name: GOOS
+      value: $(params.GOOS)
+    - name: GOARCH
+      value: $(params.GOARCH)
+    image: $(params.image)
+    name: gen
+    script: |2
+
+
+      SRC_PATH="$(workspaces.source.path)/golang/$(params.package)"
+
+      if [ ! -e $SRC_PATH/go.mod ];then
+        mkdir -p $SRC_PATH
+        cp -R "$(workspaces.source.path)/$(params.context)"/* $SRC_PATH
+        cp -R "$(workspaces.source.path)/$(params.context)"/.[!.]* $SRC_PATH
+      fi
+
+      cd $SRC_PATH
+
+      CHANGES=$(git status -s "$SRC_PATH")
+
+      if [ -d vendor ]; then
+        go generate -mod=vendor -v $(params.packages)
+      else
+        go generate -v $(params.packages)
+      fi
+
+
+      if [ -n "${CHANGES}" ]; then
+        echo "Changes:\n${CHANGES}"
+        echo "Generated dependencies need to be updated!  Please run \"go generate\" and push the generated files"
+        exit 1
+      fi
+    workingDir: $(workspaces.source.path)
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    env:
+    - name: GOPATH
+      value: /workspace
+    - name: GOOS
+      value: $(params.GOOS)
+    - name: GOARCH
+      value: $(params.GOARCH)
+    - name: GOPRIVATE
+      value: gitlab.casa-systems.com
+    - name: GOINSECURE
+      value: gitlab.casa-systems.com
+    image: $(params.image)
+    name: vet
+    script: |2
+
+      SRC_PATH="$(workspaces.source.path)/golang/$(params.package)"
+
+      if [ ! -e $SRC_PATH/go.mod ];then
+        mkdir -p $SRC_PATH
+        cp -R "$(workspaces.source.path)/$(params.context)"/* $SRC_PATH
+        cp -R "$(workspaces.source.path)/$(params.context)"/.[!.]* $SRC_PATH
+      fi
+
+      cd $SRC_PATH
+
+      # Ignore vendor directory
+      go vet -v $(params.packages)
+    workingDir: $(workspaces.source.path)
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    env:
+    - name: GOPATH
+      value: /workspace
+    - name: GOOS
+      value: $(params.GOOS)
+    - name: GOARCH
+      value: $(params.GOARCH)
+    - name: GOPRIVATE
+      value: gitlab.casa-systems.com
+    - name: GOINSECURE
+      value: gitlab.casa-systems.com
+    - name: GIT_SSL_NO_VERIFY
+      value: "1"
+    image: $(params.image)
+    name: vendor
+    script: |2
+
+      SRC_PATH="$(workspaces.source.path)/golang/$(params.package)"
+
+      if [ ! -e $SRC_PATH/go.mod ];then
+        mkdir -p $SRC_PATH
+        cp -R "$(workspaces.source.path)/$(params.context)"/* $SRC_PATH
+        cp -R "$(workspaces.source.path)/$(params.context)"/.[!.]* $SRC_PATH
+      fi
+
+      cd $SRC_PATH
+
+      CHANGES=$(git status -s $SRC_PATH/vendor)
+
+      [ -d vendor ] || exit 0
+
+      if ! go mod tidy; then
+        echo "Please run \"go mod tidy\" locally and fix any errors."
+        exit 1
+      fi
+
+      if ! go mod vendor; then
+        echo "Please run \"go mod vendor\" locally and fix any errors."
+        exit 1
+      fi
+
+      if [ -n "${CHANGES}" ]; then
+        echo "Changes:\n${CHANGES}"
+        echo "Vendored dependencies need to be updated!  Please run \"go mod vendor\" and push the vendor directory"
+        exit 1
+      fi
+    workingDir: $(workspaces.source.path)
+  workspaces:
+  - name: source

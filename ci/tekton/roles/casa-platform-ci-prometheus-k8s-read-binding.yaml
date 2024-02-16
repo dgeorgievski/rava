@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: casa-platform-ci-prometheus-k8s-read-binding
+  namespace: dimitar
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: casa-platform-ci-read
+subjects:
+- kind: ServiceAccount
+  name: prometheus-k8s
+  namespace: openshift-monitoring

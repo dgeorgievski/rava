@@ -1,0 +1,12 @@
+apiVersion: v1
+imagePullSecrets:
+- name: tekton-http-server-e2e-test-dockercfg-pgxs4
+kind: ServiceAccount
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/instance: vzw-tekton-server-catalog
+  name: tekton-http-server-e2e-test
+  namespace: dimitar
+secrets:
+- name: tekton-http-server-e2e-test-dockercfg-pgxs4

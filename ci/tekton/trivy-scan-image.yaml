@@ -1,0 +1,48 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations: {}
+  labels:
+    5g-core.casa-systems.com/taskType: image-scan
+    app.kubernetes.io/instance: tekton-catalog
+    app.kubernetes.io/version: 0.5.0
+  name: trivy-scan-image
+  namespace: dimitar
+spec:
+  description: This task scans an image for security vulnerabilities
+  params:
+  - default: $(workspaces.source.path)/image.tar
+    description: Path to the image to be copied to the destination registry
+    name: srcImage
+    type: string
+  - default: ""
+    name: build-args
+    type: string
+  - default: artifactory.casa-systems.com/docker/aquasec/trivy:latest
+    description: Location of Trivy Container
+    name: trivy-image
+    type: string
+  steps:
+  - computeResources:
+      limits:
+        cpu: "2"
+        memory: 2Gi
+      requests:
+        cpu: "1"
+        memory: 1Gi
+    env:
+    - name: severity
+      value: CRITICAL
+    image: $(params.trivy-image)
+    name: trivy-scan
+    script: "apk -q add jq\n\ntrivy image --insecure -f table $(params.build-args)
+      $(params.srcImage)\n\ntrivy -q image --insecure --no-progress -f json $(params.build-args)
+      \\\n$(params.srcImage) > $(workspaces.output.path)/trivy-scan-log.json\n\nif
+      cat $(workspaces.output.path)/trivy-scan-log.json | jq \".Results[].Vulnerabilities[].Severity\"
+      | grep -i critical > /dev/null; then \n  echo \"Critical vulnerabilities detected
+      in trivy!\"\n  exit 1 \nfi\n"
+  workspaces:
+  - description: workspace to dump the output of scan-results.txt
+    name: output
+  - description: Workspace that has the built image
+    name: source

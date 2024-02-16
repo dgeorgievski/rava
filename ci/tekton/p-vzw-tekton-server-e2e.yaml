@@ -1,0 +1,208 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  annotations: {}
+  labels:
+    app.kubernetes.io/instance: vzw-tekton-server-catalog
+    app.kubernetes.io/version: 0.1.0
+    testing.casa-systems.com/pipelineType: e2e
+    testing.casa-systems.com/priority: "100"
+  name: vzw-tekton-server-e2e
+  namespace: dimitar
+spec:
+  description: Verizon Tekton HTTP Server pipeline for end-to-end tests. This pipeline
+    clones a Git repo, deploys the dummy testing resources, runs end-to-end tests.
+  finally:
+  - name: uninstall-dummy-resources
+    params:
+    - name: release_name
+      value: vzw-tekton-server-e2e-test-resources
+    - name: helm_image
+      value: $(params.helmImage)
+    taskRef:
+      kind: Task
+      name: helm-uninstall
+  - name: cleanup-dummy-pipelineruns
+    taskSpec:
+      metadata: {}
+      spec: null
+      steps:
+      - command:
+        - /app/cleanup
+        computeResources: {}
+        image: artifactory.casa-systems.com/core5g/platform/vzw-tekton-server/cleanup:v0.1.0
+        name: cleanup-dummy-pipelineruns
+  - name: cleanup-tekton-http-server
+    params:
+    - name: release_name
+      value: vzw-tekton-server-e2e-test-http-server
+    - name: helm_image
+      value: $(params.helmImage)
+    taskRef:
+      kind: Task
+      name: helm-uninstall
+  params:
+  - description: URL of the Git repository
+    name: repoUrl
+    type: string
+  - description: Revision to checkout. (branch, tag, sha, ref, etc...)
+    name: revision
+    type: string
+  - default: .
+    description: Path to the build context within the Git repository
+    name: pathContext
+    type: string
+  - default: Dockerfile
+    description: Path to the Dockerfile within the Git repository
+    name: dockerfile
+    type: string
+  - default: "false"
+    description: SSL Verification for the "git clone" and the "skopeo copy" operations
+    name: sslVerify
+    type: string
+  - description: Name of the git project
+    name: project
+    type: string
+  - default: ../misc/e2e/values/tekton-http-server-rke2.yaml
+    description: Values file to use for the Tekton HTTP Server Helm Release
+    name: tektonHttpServerValuesFile
+    type: string
+  - default: ../e2e/values/tekton-dummy-testing.yaml
+    description: Values file to use for the tekton-dummy-testing Helm Release
+    name: dummyResourceValuesFile
+    type: string
+  - default: docker.artifactory.casa-systems.com/lachlanevenson/k8s-helm:v3.10.2
+    description: Helm image used for Helm install/upgrade/uninstall tasks
+    name: helmImage
+    type: string
+  - default: 30m
+    description: Maximum duration Pipeline Lock waits to acquire a Lease
+    name: lockTimeout
+    type: string
+  tasks:
+  - name: block
+    params:
+    - name: project
+      value: $(params.project)
+    - name: timeout
+      value: $(params.lockTimeout)
+    taskRef:
+      kind: Task
+      name: pipeline-lock-block
+  - name: manage
+    params:
+    - name: project
+      value: $(params.project)
+    - name: timeout
+      value: $(params.lockTimeout)
+    - name: lease-duration-seconds
+      value: "60"
+    taskRef:
+      kind: Task
+      name: pipeline-lock-manage
+  - name: git-clone
+    params:
+    - name: url
+      value: $(params.repoUrl)
+    - name: revision
+      value: $(params.revision)
+    - name: subdirectory
+      value: $(params.project)
+    - name: deleteExisting
+      value: "true"
+    - name: sslVerify
+      value: $(params.sslVerify)
+    taskRef:
+      kind: Task
+      name: git-clone
+    workspaces:
+    - name: output
+      workspace: workspace
+  - name: image-build
+    params:
+    - name: IMAGE
+      value: registry.gitlab.casa-systems.com/dimitar.georgievski/healthcat-rs/vzw-tekton-server:$(params.revision)
+    - name: CONTEXT
+      value: $(params.project)
+    - name: DOCKERFILE
+      value: Dockerfile
+    runAfter:
+    - git-clone
+    taskRef:
+      kind: Task
+      name: kaniko-push
+    workspaces:
+    - name: source
+      workspace: workspace
+    - name: dockerconfig
+      workspace: regcred-gitlab
+  - name: deploy-tekton-http-server
+    params:
+    - name: charts_dir
+      value: $(params.project)/chart
+    - name: release_name
+      value: vzw-tekton-server-e2e-test-http-server
+    - name: helm_image 
+      value: $(params.helmImage)
+    - name: values_file
+      value: $(params.tektonHttpServerValuesFile)
+    - name: release_version
+      value: 0.3.7
+    - name: release_namespace
+      value: dimitar
+    - name: overwrite_values
+      value: image.repository=registry.gitlab.casa-systems.com/platform/vzw-tekton-server/tekton/vzw-tekton-server,image.tag=$(params.revision)
+    runAfter:
+    - block
+    - image-build
+    taskRef:
+      kind: Task
+      name: helm-upgrade-from-source
+    workspaces:
+    - name: source
+      workspace: workspace
+  - name: deploy-dummy-resources
+    params:
+    - name: charts_dir
+      value: $(params.project)/misc/tekton-dummy-testing
+    - name: release_name
+      value: vzw-tekton-server-e2e-test-resources
+    - name: helm_image
+      value: $(params.helmImage)
+    - name: release_namespace
+      value: dimitar
+    - name: values_file
+      value: $(params.dummyResourceValuesFile)
+    - name: release_version
+      value: 0.3.2
+    runAfter:
+    - block
+    - git-clone
+    taskRef:
+      kind: Task
+      name: helm-upgrade-from-source
+    workspaces:
+    - name: source
+      workspace: workspace
+  - name: go-test
+    params:
+    - name: package
+      value: $(params.project)
+    - name: context
+      value: $(params.project)
+    - name: flags
+      value: -tags=e2e -mod=vendor -cover -v
+    - name: GOCACHE
+      value: $(workspaces.source.path)/golang/.cache
+    runAfter:
+    - deploy-dummy-resources
+    - deploy-tekton-http-server
+    taskRef:
+      kind: Task
+      name: golang-test
+    workspaces:
+    - name: source
+      workspace: workspace
+  workspaces:
+  - name: workspace
+  - name: regcred-gitlab

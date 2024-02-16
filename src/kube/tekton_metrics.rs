@@ -21,7 +21,7 @@ enum Command {
     _Get(String),
     Add(PodMetrics),
     Update(PodMetricsRecord),
-    _Remove(String),
+    Remove(PodMetrics),
     PublishAll,
 }
 
@@ -50,14 +50,17 @@ impl Default for PodMetricsRecord {
 pub struct PodMetrics {
     pub name: String,
     pub namespace: String,
+    pub status: String, 
 }
 
 // Poll PodMetrics in regular time intervals
 pub async fn poll_pod_metrics(conf: &Settings) -> Result<Sender<PodMetrics>> {
-    let (tx, mut rx): (Sender<PodMetrics>, Receiver<PodMetrics>) = channel(32);
-    let (tx_cmd, rx_cmd): (Sender<Command>, Receiver<Command>) = channel(32);
-    let mut ipoll = time::interval(Duration::from_secs(30)); 
-    let mut ipub = time::interval(Duration::from_secs(300)); 
+    let (tx, mut rx): (Sender<PodMetrics>, Receiver<PodMetrics>) = 
+        channel(conf.pod_metrics.def_channel_size);
+    let (tx_cmd, rx_cmd): (Sender<Command>, Receiver<Command>) = 
+        channel(conf.pod_metrics.def_channel_size);
+    let mut ipoll = time::interval(Duration::from_secs(conf.pod_metrics.poll_interval)); 
+    let mut ipub = time::interval(Duration::from_secs(conf.pod_metrics.publish_interval)); 
 
     // thread 1: receive TaskRun name
     let tx_cmd2 = tx_cmd.clone();
@@ -73,6 +76,7 @@ pub async fn poll_pod_metrics(conf: &Settings) -> Result<Sender<PodMetrics>> {
                             PodMetrics{
                                 name: String::from("n/a"),
                                 namespace: String::from("n/a"),
+                                status: String::from("n/a"),
                             }
                         }
                     }
@@ -81,7 +85,15 @@ pub async fn poll_pod_metrics(conf: &Settings) -> Result<Sender<PodMetrics>> {
                         continue;
                     }
 
-                    match tx_cmd2.send(Command::Add(we)).await{
+                    // \"Succeeded\"
+                    let cmd = match we.status.as_str().trim_matches('"') {
+                        "Succeeded" => Command::Remove(we.clone()),
+                        "Failed" => Command::Remove(we.clone()),
+                        _ => Command::Add(we.clone()),
+                    };
+
+                    // TODO add or remove command
+                    match tx_cmd2.send(cmd).await{
                         Ok(_) => continue,
                         Err(why) => {
                             tracing::error!("Failed cmd: {:?}", why);
@@ -170,6 +182,18 @@ async fn manage_pod_metrics_db(tx_pm: Option<Sender<PodMetricsRecord>>,
                     }
                 }
 
+                Command::Remove(pm) => {
+                    println!(">> Cmd::Remove -> {:?}", pm);
+                    db. 
+                    retain(|_, v| {
+                        if v.name == pm.name && v.namespace == pm.namespace {
+                            false
+                        }else{
+                            true
+                        }
+                    });
+                }
+                
                 // Iterate over DB, and update PodMetrics
                 Command::Poll => {
                     println!(">> Cmd::Polling");
@@ -228,7 +252,8 @@ async fn manage_pod_metrics_db(tx_pm: Option<Sender<PodMetricsRecord>>,
 
 // start a thread that monitors PodMetrics
 async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sender<PodMetricsRecord>> {
-    let (tx, mut rx): (Sender<PodMetricsRecord>, Receiver<PodMetricsRecord>) = channel(128);
+    let (tx, mut rx): (Sender<PodMetricsRecord>, Receiver<PodMetricsRecord>) = 
+        channel(conf.pod_metrics.record_channel_size);
     
     let cli = match client::client(conf.kube.use_tls).await {
         Err(why) => {

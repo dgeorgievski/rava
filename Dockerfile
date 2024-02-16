@@ -41,7 +41,7 @@ RUN --mount=type=bind,source=src,target=src \
     <<EOF
 set -e
 cargo build --locked --release
-strip -s /app/target/release/healthcat
+strip -s /app/target/release/$APP_NAME
 cp ./target/release/$APP_NAME /bin/$APP_NAME
 EOF
 

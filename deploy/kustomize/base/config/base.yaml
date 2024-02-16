@@ -11,6 +11,16 @@ nats:
 application:
   port: 8000
   host: 0.0.0.0
+
+pod_metrics:
+  def_channel_size: 32
+  record_channel_size: 128
+
+  # seconds
+  poll_interval: 10
+  publish_interval: 60
+
+
 kube:
   use_tls: false
 

@@ -12,7 +12,6 @@ configMapGenerator:
   - name: healthcat-rs-config
     files:
     - config/base.yaml
-    - config/production.yaml
 
 resources:
   - deployment.yaml

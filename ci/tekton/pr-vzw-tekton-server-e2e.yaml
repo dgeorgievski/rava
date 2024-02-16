@@ -1,0 +1,47 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  annotations: {}
+  finalizers:
+  - chains.tekton.dev/pipelinerun
+  generateName: vzw-tekton-server-e2e-
+  labels:
+    app.kubernetes.io/instance: vzw-tekton-server-catalog
+    app.kubernetes.io/version: 0.1.0
+    tekton.dev/pipeline: vzw-tekton-server-e2e
+    testing.casa-systems.com/pipelineType: e2e
+    testing.casa-systems.com/priority: "100"
+    triggers.tekton.dev/triggers-eventid: 75458ea2-fa1a-4abc-9d40-a3c35684a379
+  namespace: dimitar
+spec:
+  params:
+  - name: revision
+    value: c5c8731cb98fe891ecd7bb33179aa49b9ffa5806
+  - name: repoUrl
+    value: https://gitlab.casa-systems.com/platform/vzw-tekton-server.git
+  - name: project
+    value: vzw-tekton-server
+  pipelineRef:
+    name: vzw-tekton-server-e2e
+  taskRunSpecs:
+  - pipelineTaskName: image-build
+    serviceAccountName: pipeline
+  taskRunTemplate:
+    serviceAccountName: tekton-http-server-e2e-test
+  timeouts:
+    pipeline: 30m0s
+  workspaces:
+  - name: workspace
+    volumeClaimTemplate:
+      metadata:
+        creationTimestamp: null
+      spec:
+        accessModes:
+        - ReadWriteMany
+        resources:
+          requests:
+            storage: 1Gi
+      status: {}
+  - name: regcred-gitlab
+    secret:
+      secretName: gitlab-skopeo-auth-file

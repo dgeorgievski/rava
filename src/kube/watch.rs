@@ -9,6 +9,7 @@ use futures::{StreamExt, TryStreamExt};
 //     runtime::{watcher, WatchStreamExt},
 // };
 
+use kube::core::DynamicObject;
 use kube::runtime::{watcher, WatchStreamExt};
 
 use kube::ResourceExt;
@@ -106,9 +107,12 @@ pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
                             if let Some(type_meta) = &dyn_obj.types {
                                 if type_meta.kind == "TaskRun" {
                                     if let Some(ns) = &dyn_obj.namespace(){
+                                        let status = get_task_run_status(&dyn_obj);
+                                        
                                         tx_pm3.send(PodMetrics{
                                             name: dyn_obj.name_any(),
                                             namespace: ns.to_string(),
+                                            status,
                                         }).await.unwrap();
                                     }
                                 }
@@ -129,4 +133,21 @@ pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
     }
 
     return Ok(rx);
+}
+
+// Returns TaskRun reason of status condition
+fn get_task_run_status(dynobj: &DynamicObject) -> String {
+    let mut ret_status = "Unknown".to_string();
+
+    if let Some(status) = dynobj.data.get("status") {
+        if let Some(cond) = status.get("conditions") {
+            if cond.is_array() {
+                if let Some(reason) = cond[0].get("reason") {
+                    ret_status = reason.to_string();
+                }
+            }
+        }
+    }
+
+    ret_status
 }

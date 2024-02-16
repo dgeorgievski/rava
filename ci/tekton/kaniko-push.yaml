@@ -1,0 +1,73 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  annotations:
+    tekton.dev/categories: Image Build
+    tekton.dev/displayName: Build and upload container image using Kaniko
+    tekton.dev/pipelines.minVersion: 0.17.0
+    tekton.dev/platforms: linux/amd64
+    tekton.dev/tags: image-build
+  labels:
+    5g-core.casa-systems.com/taskType: image-build
+    app.kubernetes.io/instance: tekton-catalog
+    app.kubernetes.io/version: 0.1.0
+  name: kaniko-push
+  namespace: dimitar
+spec:
+  description: |-
+    This Task builds source into a container image using Google's Kaniko tool.
+    The Task is based on the v0.5 of the public Kaniko Task but has the following changes:
+
+      - v1.20.0 of Kaniko is used
+      - TLS verification is disabled
+  params:
+  - description: Name (reference) of the image to build.
+    name: IMAGE
+    type: string
+  - default: ./Dockerfile
+    description: Path to the Dockerfile to build.
+    name: DOCKERFILE
+    type: string
+  - default: ./
+    description: The build context used by Kaniko.
+    name: CONTEXT
+    type: string
+  - default: []
+    name: EXTRA_ARGS
+    type: array
+  - default: gcr.io/kaniko-project/executor:v1.20.0
+    description: The image on which builds will run
+    name: BUILDER_IMAGE
+    type: string
+  results:
+  - description: Digest of the image just built.
+    name: IMAGE-DIGEST
+    type: string
+  steps:
+  - args:
+    - $(params.EXTRA_ARGS[*])
+    - --dockerfile=$(params.DOCKERFILE)
+    - --context=$(workspaces.source.path)/$(params.CONTEXT)
+    - --destination=$(params.IMAGE)
+    - --reproducible
+    - --digest-file=/tekton/results/IMAGE-DIGEST
+    - --skip-tls-verify=true
+    computeResources:
+      limits:
+        cpu: "10"
+        memory: 10Gi
+      requests:
+        cpu: "4"
+        memory: 2Gi
+    image: $(params.BUILDER_IMAGE)
+    name: build-and-push
+    securityContext:
+      runAsUser: 0
+    workingDir: $(workspaces.source.path)
+  workspaces:
+  - description: Holds the context and docker file
+    name: source
+  - description: Includes a docker `config.json`
+    mountPath: /kaniko/.docker
+    name: dockerconfig
+    optional: true

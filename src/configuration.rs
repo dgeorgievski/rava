@@ -7,7 +7,20 @@ pub struct Settings {
     pub cluster_annotation: String,
     pub nats: NatsProxy,
     pub application: ApplicationSettings,
+    pub pod_metrics: PodMetricsSettings,
     pub kube: KubeSettings,
+}
+
+#[derive(serde::Deserialize,  Debug, Clone)]
+pub struct PodMetricsSettings {
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub def_channel_size: usize,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub record_channel_size: usize,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub poll_interval: u64,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
+    pub publish_interval: u64,
 }
 
 #[derive(serde::Deserialize,  Debug, Clone)]

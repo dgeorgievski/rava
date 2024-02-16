@@ -1,0 +1,35 @@
+## TaskRuns
+Succeeded
+```yaml
+status:
+  completionTime: "2024-02-15T22:25:48Z"
+  conditions:
+  - lastTransitionTime: "2024-02-15T22:25:48Z"
+    message: All Steps have completed executing
+    reason: Succeeded
+    status: "True"
+    type: Succeeded
+```
+
+Failed
+```yaml
+status:
+  completionTime: "2024-02-14T23:20:17Z"
+  conditions:
+  - lastTransitionTime: "2024-02-14T23:20:17Z"
+    message: |
+      "step-golang-test" exited with code 1 (image: "registry.gitlab.casa-systems.com/platform/sdk@sha256:7931c8294c677caf3db23a09339f0c5a48fb66fda2523eb4b78953338426f790"); for logs run: kubectl -n casa-platform-ci logs vzw-tekton-server-e2e-bae4865d-2bmqr-go-test-pod -c step-golang-test
+    reason: Failed
+    status: "False"
+    type: Succeeded
+```
+
+Running
+```yaml 
+ Conditions:
+    Last Transition Time:  2024-02-16T16:45:59Z
+    Message:               Tasks Completed: 0 (Failed: 0, Cancelled 0), Incomplete: 10, Skipped: 0
+    Reason:                Running
+    Status:                Unknown
+    Type:                  Succeeded
+```
