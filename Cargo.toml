@@ -1,6 +1,6 @@
 [package]
 name = "healthcat"
-version = "0.1.9"
+version = "0.2.4"
 authors = ["Dimitar Georgievski <dimitar.georgievski@casa-systems.com>"]
 edition = "2021"
 

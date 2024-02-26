@@ -12,7 +12,7 @@ use chrono::prelude::*;
 
 use crate::kube::client;
 use crate::configuration::Settings;
-use crate::output::cloud_event::http_post_dynobj;
+use crate::output::cloud_event::http_post_pod_metrics_record;
 
 #[derive(Debug)]
 enum Command {
@@ -26,12 +26,13 @@ enum Command {
 }
 
 #[derive(Debug, Clone)]
-struct PodMetricsRecord {
+pub struct PodMetricsRecord {
     pub name: String,
     pub namespace: String,
     pub count_add: i32,
     pub updated_at: DateTime<Utc>,
     pub metric: Option<DynamicObject>,
+    pub node_metric: Option<NodeMetrics>,
 }
 
 impl Default for PodMetricsRecord {
@@ -42,8 +43,15 @@ impl Default for PodMetricsRecord {
             count_add: 0,
             updated_at: Utc::now(),
             metric: None,
+            node_metric: None,
         }
     }
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct NodeMetrics {
+    pub cpu: String,
+    pub memory: String,
 }
 
 #[derive(Debug, Clone)]
@@ -178,7 +186,9 @@ async fn manage_pod_metrics_db(tx_pm: Option<Sender<PodMetricsRecord>>,
                             namespace: pm.namespace, 
                             count_add: 0, 
                             updated_at: Utc::now(), 
-                            metric: None });
+                            metric: None,
+                            node_metric: None, 
+                        });
                     }
                 }
 
@@ -278,6 +288,22 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
         plural: String::from("pods"),
     };
     
+    let mut nm_ar =  ApiResource {
+        group: String::from("metrics.k8s.io"),
+        version: String::from("v1beta1"),
+        api_version: String::from("metrics.k8s.io/v1beta1"),
+        kind: String::from("NodeMetrics"),
+        plural: String::from("nodes"),
+    };
+
+    let mut pod_ar =  ApiResource {
+        group: String::from(""),
+        version: String::from("v1"),
+        api_version: String::from("v1"),
+        kind: String::from("Pod"),
+        plural: String::from("pods"),
+    };
+
     let discovery: Discovery;
     match Discovery::new(cli.clone()).run().await {
         Ok(d) => {
@@ -289,13 +315,35 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
         },
     };
 
+    let mut cnt_found = 0;
     'outer: for group in discovery.groups() {
         for (ar, _caps) in group.recommended_resources() {
-            if ar.kind == "PodMetrics" {
-                tracing::info!("PodMetrics API found {:?}", ar);
-                is_pm_ar_found = true;
-                pm_ar = ar;
-                break 'outer;
+            
+            match ar.kind.as_str() {
+                "PodMetrics" => {
+                    tracing::info!("PodMetrics API found {:?}", ar);
+                    is_pm_ar_found = true;
+                    pm_ar = ar;
+                    cnt_found += 1;
+                }
+
+                "NodeMetrics" => {
+                    tracing::info!("NodeMetrics API found {:?}", ar);
+                    nm_ar = ar;
+                    cnt_found += 1;
+                }
+
+                "Pods" => {
+                    tracing::info!("Pods API found {:?}", ar);
+                    pod_ar = ar;
+                    cnt_found += 1;
+                }
+
+                &_ => {
+                    if cnt_found == 3 {
+                        break 'outer
+                    }
+                }
             }
         }
     }
@@ -315,6 +363,7 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
             // tracing::info!("checking {}/{}", pm.namespace, pod_name);
             // println!(">> checking {}/{}", pm.namespace, pod_name);
 
+            //get PodMetrics 
             let api: Api<DynamicObject> = Api::namespaced_with(
                 cli.clone(), 
                 &pm.namespace,
@@ -331,22 +380,87 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
             };
             
             let record = match pmo {
+                //
                 // PodMetrics not found, skip message
+                //
                 None => continue,
 
-                Some(_) => PodMetricsRecord{
+                Some(_) => {
+                    // Extract worker nodeName from TaskRun pod
+                    let api_pod: Api<DynamicObject> = Api::namespaced_with(
+                        cli.clone(), 
+                        &pm.namespace,
+                        &pod_ar);
+            
+                    let pod_node = match api_pod.get_opt(&pod_name.as_str()).await {
+                        Ok(podo) => {
+                            let mut node_name = "Unknown".to_string();
+                            if let Some(pod) = podo {
+                                if let Some(spec) = pod.data.get("spec") {
+                                    if let Some(worker) = spec.get("nodeName") {
+                                        node_name = worker.to_string();
+                                    }
+                                }
+                            }
+
+                            node_name.trim_matches('"').to_string()
+                        },
+                        Err(why) => {
+                            tracing::error!("Failed to get Pod[{}] {:?}", pod_name, why);
+                            "Unknown".to_string()
+                        }
+                    };
+
+                    //
+                    // Get NodeMetrics for the worker
+                    //
+                    let mut node_usage = NodeMetrics{
+                        cpu: "0".to_string(),
+                        memory: "0".to_string(),
+                    };
+
+                    //get NodeMetrics where Pod is running
+                    let api_node: Api<DynamicObject> = Api::all_with(
+                            cli.clone(), 
+                            &nm_ar);
+            
+                    let nmo = match api_node.get_opt(&pod_node.as_str()).await {
+                        Ok(nmo) => {
+                            nmo
+                        },
+                        Err(why) => {
+                            tracing::error!("Failed to get NodeMetrics {:?}", why);
+                            None
+                        }
+                    };
+
+                    if let Some(node) = nmo {
+                        if let Some(usage) = node.data.get("usage") {
+                            if let Some(cpu) = usage.get("cpu") {
+                                println!(" >> Set CPU: {:?}", cpu);
+                                node_usage.cpu = cpu.to_string();
+                            }
+                            
+                            if let Some(mem) = usage.get("memory") {
+                                println!(" >> Set mem: {:?}", mem);
+                                node_usage.memory = mem.to_string();
+                            }
+                        }
+                    }
+                    
+                    PodMetricsRecord{
                         name: pm.name.clone(),
                         namespace: pm.namespace.clone(),
                         count_add: pm.count_add + 1,
                         updated_at: Utc::now(),
                         metric: pmo,
+                        node_metric: Some(node_usage),
                     }
+                }
             };
 
             let _ = tx_cmd.send(Command::Update(record)).await;
            
-            // let event_type = String::from("healthcat.tekton.podmetrics.v1");
-            // let _ = http_post_dynobj(obj, event_type, &conf2).await;
         }
     });
 
@@ -357,17 +471,17 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
 async fn publish_all_metrics(db: &BTreeMap<String, PodMetricsRecord>, conf: &Settings) {
     let event_type = String::from("healthcat.tekton.podmetrics.v1");
 
-    for (_key, pmr) in db.iter() {
-        let obj = match &pmr.metric {
-            Some(metric) => {
-                metric
-            },
-            None => {
-                continue;
-            },
-        }; 
-
-        let _ = http_post_dynobj(obj.clone(), event_type.clone(), &conf).await;
+    for (_key, pmr) in db.iter() { 
+        let pod_metrics = PodMetricsRecord {
+            name: pmr.name.clone(),
+            namespace: pmr.namespace.clone(),
+            count_add: pmr.count_add.clone(),
+            updated_at: pmr.updated_at,
+            metric: pmr.metric.clone(),
+            node_metric: pmr.node_metric.clone(),
+        };
+        let _ = http_post_pod_metrics_record(pod_metrics, event_type.clone(), &conf).await;
+        // let _ = http_post_dynobj(obj.clone(), event_type.clone(), &conf).await;
     }
 }
 
@@ -383,10 +497,17 @@ async fn print_pod_metrics_db(db: &BTreeMap<String, PodMetricsRecord>) {
                 String::from("")
             },
         };
-        println!(">> {0:<20} cnt: {1} at: {2:<20} obj: {3:<60}",
+        let node_metrics = match &pmr.node_metric {
+            Some(m) => m.clone(),
+            None => NodeMetrics{cpu: "0".to_string(), memory: "0".to_string()},
+        };
+
+        println!(">> {0:<20} cnt: {1} at: {2:<20} node[cpu:{3} mem: {4}] obj: {5:<60}",
             key,
             pmr.count_add,
             pmr.updated_at,
+            node_metrics.cpu,
+            node_metrics.memory,
             val);
     }
     println!("");

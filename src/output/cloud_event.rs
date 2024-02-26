@@ -7,8 +7,10 @@ use cloudevents::binding::reqwest::RequestBuilderExt;
 use cloudevents::{EventBuilder, EventBuilderV10};
 use uuid::Uuid;
 use actix_web::http::StatusCode;
-use anyhow::Result;
-use crate::kube::WatchEvent;
+use anyhow::{anyhow, Result};
+use crate::kube::{
+    WatchEvent, 
+    tekton_metrics::{PodMetricsRecord, NodeMetrics}};
 use crate::output::parse_type_meta;
 use crate::output::utils;
 use crate::configuration::Settings;
@@ -251,6 +253,106 @@ pub async fn http_post_dynobj(dynobj: DynamicObject,
         Err(why) => {
             tracing::error!("Failed building CloudEvent {:?}", why);
             StatusCode::INTERNAL_SERVER_ERROR
+        },
+    };
+
+    Ok(())
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+struct PodMetricsEvent {
+    pod_metrics: DynamicObject,
+    node_metrics: NodeMetrics,
+}
+
+// Posts a combined event of PodMetrics and NodeMetrics
+pub async fn http_post_pod_metrics_record(pm: PodMetricsRecord, 
+    event_type: String,
+    conf: &Settings) -> Result<()> {
+
+    let target = conf.nats.proxy_url.clone();
+    let cluster_name = conf.name.clone();
+    // let cluster_annotation = conf.cluster_annotation.clone();
+    
+    let namespace = pm.namespace;
+    let name = pm.name;
+    
+    let pod_metrics = match pm.metric {
+        Some(dynobj) => dynobj,
+        None => return Err(anyhow!("PodMetrics data missing")),    
+    };
+
+    let node_metrics = match pm.node_metric {
+        Some(nm) => nm,
+        None => return Err(anyhow!("NodeMetrics data missing")),    
+    };
+
+    let pod_metrics_event = PodMetricsEvent{
+        pod_metrics: pod_metrics,
+        node_metrics: node_metrics,
+    };
+
+    let type_meta = match &pod_metrics_event.pod_metrics.types {
+        Some(tm) => tm,
+        None => return Err(anyhow!("PodMetrics type meta missing")),    
+    };
+
+    let kind = type_meta.kind.to_string();
+
+    let source_path = format!("{}/{}/{}/{}", 
+        cluster_name, 
+        namespace,
+        &kind,
+        name);
+
+    // convert DynamicObject to JSON string
+    let obj_json = match serde_json::to_string(&pod_metrics_event) {
+                        Ok(j) => j,
+                        Err(why) => {
+                            tracing::error!("failed json conversion {:?}", why);
+                            return Err(anyhow!("PodMetrics to JSON failure"));
+                        },
+                    };
+
+    let _res_ce = match EventBuilderV10::new()
+                        .id(&Uuid::new_v4().hyphenated().to_string())
+                        .ty(event_type)
+                        .source(source_path)
+                        .data("application/json", obj_json)
+                        .build() 
+    {
+        Ok(event) => {
+            match reqwest::Client::new()
+                        .post(&target)
+                        .event(event)
+            {
+                Ok(request) => {
+                    match request
+                                    .header("Access-Control-Allow-Origin", "*")
+                                    .send()
+                                    .await {
+                        Ok(res) => {
+                            res.status()
+                        },
+                        Err(why) => {
+                            tracing::error!("Post event failed {:?}", why);
+                            if let Some(st) = why.status() {
+                                st
+                            }else{
+                                return Err(anyhow!("Posting PodMetrics failed"));
+                            }
+                        },
+                    }
+                },
+                Err(why) => {
+                    tracing::error!("Building event failed {:?}", why);
+                    return Err(anyhow!("Building PodMetrics event failed"));
+                },
+            }
+        },
+        Err(why) => {
+            tracing::error!("Failed building CloudEvent {:?}", why);
+            return Err(anyhow!("building PodMetrics cloud event failed"));
         },
     };
 

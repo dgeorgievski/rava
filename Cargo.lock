@@ -844,7 +844,7 @@ dependencies = [
 
 [[package]]
 name = "healthcat"
-version = "0.1.9"
+version = "0.2.4"
 dependencies = [
  "actix-web",
  "anyhow",

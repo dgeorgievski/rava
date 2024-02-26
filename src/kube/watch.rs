@@ -107,7 +107,7 @@ pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
                             if let Some(type_meta) = &dyn_obj.types {
                                 if type_meta.kind == "TaskRun" {
                                     if let Some(ns) = &dyn_obj.namespace(){
-                                        let status = get_task_run_status(&dyn_obj);
+                                        let status= get_task_run_data(&dyn_obj);
                                         
                                         tx_pm3.send(PodMetrics{
                                             name: dyn_obj.name_any(),
@@ -135,8 +135,8 @@ pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
     return Ok(rx);
 }
 
-// Returns TaskRun reason of status condition
-fn get_task_run_status(dynobj: &DynamicObject) -> String {
+// Returns TaskRun reason of status condition and name of k8s node
+fn get_task_run_data(dynobj: &DynamicObject) -> String {
     let mut ret_status = "Unknown".to_string();
 
     if let Some(status) = dynobj.data.get("status") {

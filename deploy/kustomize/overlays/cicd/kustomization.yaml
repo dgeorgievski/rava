@@ -3,7 +3,7 @@ kind: Kustomization
 namespace: app-health-5g
 images:
   - name: registry.gitlab.casa-systems.com/dimitar.georgievski/healthcat-rs
-    newTag: 0.1.9
+    newTag: 0.2.4
 
 configMapGenerator:
   - name: healthcat-rs-config
