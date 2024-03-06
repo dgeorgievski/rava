@@ -1,7 +1,7 @@
-use kube::{core::ApiResource,
-    api::{Api, DynamicObject},
-    discovery::Discovery,
+use kube::{api::{Api, DynamicObject, ListParams}, core::ApiResource, discovery::Discovery, Client, ResourceExt
 };
+use k8s_openapi::{
+    api::core::v1::Node, apimachinery::pkg::api::resource::Quantity};
 use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
     time::{self, Duration}
@@ -32,7 +32,7 @@ pub struct PodMetricsRecord {
     pub count_add: i32,
     pub updated_at: DateTime<Utc>,
     pub metric: Option<DynamicObject>,
-    pub node_metric: Option<NodeMetrics>,
+    pub node_metric: Option<WorkerNode>,
 }
 
 impl Default for PodMetricsRecord {
@@ -49,9 +49,44 @@ impl Default for PodMetricsRecord {
 }
 
 #[derive(Debug, Clone, serde::Serialize)]
-pub struct NodeMetrics {
-    pub cpu: String,
-    pub memory: String,
+pub struct WorkerNode {
+    pub status: WorkerNodeStatus
+}
+
+impl Default for WorkerNode {
+    fn default() -> Self {
+        WorkerNode { status: WorkerNodeStatus{
+            allocatable: AllocatableResources{
+                cpu: Quantity("0".to_string()),
+                memory: Quantity("0".to_string()),
+                }
+            }
+         }
+    }
+}
+
+impl WorkerNode {
+    fn new(cpu: Quantity, memory: Quantity) -> WorkerNode {
+        WorkerNode { status: WorkerNodeStatus{
+            allocatable: AllocatableResources{
+                    cpu,
+                    memory,
+                }
+            }
+         }
+    }
+}
+
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct WorkerNodeStatus  {
+    pub allocatable: AllocatableResources,
+}
+
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AllocatableResources {
+    pub cpu: Quantity,
+    pub memory: Quantity,
 }
 
 #[derive(Debug, Clone)]
@@ -265,6 +300,8 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
     let (tx, mut rx): (Sender<PodMetricsRecord>, Receiver<PodMetricsRecord>) = 
         channel(conf.pod_metrics.record_channel_size);
     
+    let mut db_workers:BTreeMap<String, WorkerNode> = BTreeMap::new();
+
     let cli = match client::client(conf.kube.use_tls).await {
         Err(why) => {
             tracing::error!("k8s Client failed {:?}", why);
@@ -288,14 +325,6 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
         plural: String::from("pods"),
     };
     
-    let mut nm_ar =  ApiResource {
-        group: String::from("metrics.k8s.io"),
-        version: String::from("v1beta1"),
-        api_version: String::from("metrics.k8s.io/v1beta1"),
-        kind: String::from("NodeMetrics"),
-        plural: String::from("nodes"),
-    };
-
     let mut pod_ar =  ApiResource {
         group: String::from(""),
         version: String::from("v1"),
@@ -327,20 +356,14 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
                     cnt_found += 1;
                 }
 
-                "NodeMetrics" => {
-                    tracing::info!("NodeMetrics API found {:?}", ar);
-                    nm_ar = ar;
-                    cnt_found += 1;
-                }
-
-                "Pods" => {
+                "Pod" => {
                     tracing::info!("Pods API found {:?}", ar);
                     pod_ar = ar;
                     cnt_found += 1;
                 }
 
                 &_ => {
-                    if cnt_found == 3 {
+                    if cnt_found == 2 {
                         break 'outer
                     }
                 }
@@ -353,6 +376,16 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
         return Err(anyhow!("PodMetrics API not found"));
     };
  
+    // get nodes Allocatable CPU and Mem thresholds
+    match get_worker_nodes_allocations(cli.clone(), &mut db_workers).await {
+        Ok(_) => {
+            println!(" >> Worker nodes allocation loaded successfully");
+        },
+        Err(why) => {
+            println!(" >> Worker nodes allocations loading failed {}", why);
+        }
+    }
+
     // PodMetrics thread
     // Get Pod name of TaskRun and namespace, create PodMetrics APi Resource
     // and collect the resource state.
@@ -392,7 +425,7 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
                         &pm.namespace,
                         &pod_ar);
             
-                    let pod_node = match api_pod.get_opt(&pod_name.as_str()).await {
+                    let pod_node_name = match api_pod.get_opt(&pod_name.as_str()).await {
                         Ok(podo) => {
                             let mut node_name = "Unknown".to_string();
                             if let Some(pod) = podo {
@@ -414,40 +447,18 @@ async fn get_pod_metrics(tx_cmd: Sender<Command>, conf: &Settings) -> Result<Sen
                     //
                     // Get NodeMetrics for the worker
                     //
-                    let mut node_usage = NodeMetrics{
-                        cpu: "0".to_string(),
-                        memory: "0".to_string(),
+                    let cpu = match db_workers.clone().get(&pod_node_name) {
+                        Some(c) => c.status.allocatable.cpu.clone(),
+                        None => Quantity("0".to_string()),
                     };
 
-                    //get NodeMetrics where Pod is running
-                    let api_node: Api<DynamicObject> = Api::all_with(
-                            cli.clone(), 
-                            &nm_ar);
-            
-                    let nmo = match api_node.get_opt(&pod_node.as_str()).await {
-                        Ok(nmo) => {
-                            nmo
-                        },
-                        Err(why) => {
-                            tracing::error!("Failed to get NodeMetrics {:?}", why);
-                            None
-                        }
+                    let memory = match db_workers.clone().get(&pod_node_name) {
+                        Some(c) => c.status.allocatable.memory.clone(),
+                        None => Quantity("0".to_string()),
                     };
 
-                    if let Some(node) = nmo {
-                        if let Some(usage) = node.data.get("usage") {
-                            if let Some(cpu) = usage.get("cpu") {
-                                println!(" >> Set CPU: {:?}", cpu);
-                                node_usage.cpu = cpu.to_string();
-                            }
-                            
-                            if let Some(mem) = usage.get("memory") {
-                                println!(" >> Set mem: {:?}", mem);
-                                node_usage.memory = mem.to_string();
-                            }
-                        }
-                    }
-                    
+                    let node_usage = WorkerNode::new(cpu, memory);
+
                     PodMetricsRecord{
                         name: pm.name.clone(),
                         namespace: pm.namespace.clone(),
@@ -499,16 +510,71 @@ async fn print_pod_metrics_db(db: &BTreeMap<String, PodMetricsRecord>) {
         };
         let node_metrics = match &pmr.node_metric {
             Some(m) => m.clone(),
-            None => NodeMetrics{cpu: "0".to_string(), memory: "0".to_string()},
+            None => WorkerNode::default(),
         };
 
-        println!(">> {0:<20} cnt: {1} at: {2:<20} node[cpu:{3} mem: {4}] obj: {5:<60}",
+        println!(">> {0:<20} cnt: {1} at: {2:<20} node[cpu:{3:?} mem: {4:?}] obj: {5:<60}",
             key,
             pmr.count_add,
             pmr.updated_at,
-            node_metrics.cpu,
-            node_metrics.memory,
+            node_metrics.status.allocatable.cpu,
+            node_metrics.status.allocatable.memory,
             val);
     }
     println!("");
+}
+
+// Retrieve and store in-mem all Worker nodes allocations
+async fn get_worker_nodes_allocations(cli: Client,
+    db: &mut BTreeMap<String, WorkerNode>) ->  anyhow::Result<()> {
+
+    //get worker Nodes allocations 
+    let nodes_api: Api<Node> = Api::all(cli.clone());
+
+    // select workers used for performance
+    let lp = ListParams::default().
+    labels("node-role.kubernetes.io/worker=,node-role.kubernetes.io/performance=");
+
+    let nodes = match nodes_api.list(&lp).await {
+        Ok(n) => n,
+        Err(why) => {
+            println!(" >>>> get_worker_nodes_allocations nodes API: {}", why);
+            tracing::error!("Listing Nodes failed: {}", why);
+            return Err(anyhow!("Listing Nodes failed"));
+        },
+    };
+
+    if nodes.items.len() == 0 {
+        tracing::error!("Missing worker Nodes");
+        return Err(anyhow!("Missing worker Nodes"));
+    };
+
+    for node in nodes {
+        let node_name = node.name_any();
+        if let Some(ns) = node.status {
+            if let Some(aloc) = ns.allocatable {
+                let cpu = match aloc.get("cpu") {
+                    Some(c) => c.clone(),
+                    None => Quantity("0".to_string()),
+                };
+
+                let mem = match aloc.get("memory") {
+                    Some(m) => m.clone(),
+                    None => Quantity("0".to_string()),
+                };
+
+                println!(" >> Worker[{0}] cpu: {1:?} mem: {2:?}", node_name,
+                                                            cpu,
+                                                            mem);
+                db.insert(node_name, WorkerNode { 
+                        status: WorkerNodeStatus { 
+                            allocatable: AllocatableResources { 
+                                cpu: cpu.clone(), 
+                                memory: mem.clone() 
+                            }}});
+            }
+        }
+    }
+
+    Ok(())
 }

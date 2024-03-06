@@ -10,7 +10,7 @@ use actix_web::http::StatusCode;
 use anyhow::{anyhow, Result};
 use crate::kube::{
     WatchEvent, 
-    tekton_metrics::{PodMetricsRecord, NodeMetrics}};
+    tekton_metrics::{PodMetricsRecord, WorkerNode}};
 use crate::output::parse_type_meta;
 use crate::output::utils;
 use crate::configuration::Settings;
@@ -262,7 +262,7 @@ pub async fn http_post_dynobj(dynobj: DynamicObject,
 #[derive(Debug, Clone, serde::Serialize)]
 struct PodMetricsEvent {
     pod_metrics: DynamicObject,
-    node_metrics: NodeMetrics,
+    node_metrics: WorkerNode,
 }
 
 // Posts a combined event of PodMetrics and NodeMetrics

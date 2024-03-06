@@ -16,7 +16,7 @@ metadata:
 spec:
   params:
   - name: revision
-    value: c5c8731cb98fe891ecd7bb33179aa49b9ffa5806
+    value: e81b0e13500e496e93f35c64c5faefcc3461b171
   - name: repoUrl
     value: https://gitlab.casa-systems.com/platform/vzw-tekton-server.git
   - name: project

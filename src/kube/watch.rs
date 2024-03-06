@@ -64,7 +64,7 @@ pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
         for apisel in dyn_apis { 
             let tx2 = tx.clone();
             let resource_url: String = apisel.api_dyn.resource_url().to_owned();
-            dbg!(&apisel);
+            // dbg!(&apisel);
 
             let tx_pm2 = tx_pm.clone();
             // start watching API Resource in a dedicated thread
@@ -112,7 +112,7 @@ pub async fn watch(conf: &Settings) -> Result<Receiver<WatchEvent>> {
                                         tx_pm3.send(PodMetrics{
                                             name: dyn_obj.name_any(),
                                             namespace: ns.to_string(),
-                                            status,
+                                            status: status.trim_matches('"').to_string(),
                                         }).await.unwrap();
                                     }
                                 }
